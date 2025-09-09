@@ -1,0 +1,11 @@
+{
+  "name": "Porkelon Token",
+  "symbol": "PORK",
+  "description": "Porkelon token — community token for the Porkelon ecosystem.",
+  "image": "https://arweave.net/<image-id>.png",
+  "external_url": "https://yourproject.website",
+  "attributes": [{"trait_type":"Chain","value":"Solana"}],
+  "properties": {
+    "files": [{"uri":"https://arweave.net/<image-id>.png","type":"image/png"}]
+  }
+}
