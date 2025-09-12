@@ -1,12 +1,12 @@
 # 🐖 Porkelon Token (PORK)
 
-Porkelon Token (PORK) is a simple, lightweight deflationary ERC-20 built for the Ethereum Sepolia testnet. It implements a 1% marketing fee on transfers and includes standard ERC-20 features (mint, burn, transfer) with Ownable access control.
+Porkelon Token (PORK) is a simple, lightweight deflationary token built on Moonshot for Solana. It implements a 1% and includes standard ERC-20 features (mint, burn, transfer) with Ownable access control.
 
 Quick facts
 - Ticker: **PORK**
-- Total supply: **60,000,000,000 PORK** (18 decimals)
+- Total supply: **1,000,000,000 PORK** (18 decimals)
 - Fee: **1%** of every transfer is forwarded to the configured marketing wallet
-- Network used in this repo: **Ethereum Sepolia Testnet**
+- Network used in this repo: **Moonshot**
 - Features: Ownable, Mintable, Burnable, Transferable
 
 Table of contents
@@ -15,18 +15,13 @@ Table of contents
 - Compile
 - Tests
 - Deploy
-- Verify on Etherscan
+- Verify on Solana
 - Interacting with the contract
 - Environment variables
 - Security & notes
 - Contributing & license
 
 Requirements
-- Node.js (v16+ recommended)
-- npm or yarn
-- An Ethereum RPC URL for Sepolia (Infura, Alchemy, or other)
-- A funded Sepolia account private key (for deployment)
-- ETHERSCAN API key (for verification, if you want to verify on Etherscan)
 
 Setup
 
@@ -116,17 +111,3 @@ MARKETING_WALLET=0xYourMarketingWalletAddress
 ETHERSCAN_API_KEY=YourEtherscanApiKey
 ```
 
-Security & notes
-- This repository targets Sepolia (testnet); do not use testnet keys or funds on mainnet without audit.
-- The marketing fee is implemented in transfer logic and routes to the MARKETING_WALLET. Ensure you understand this behavior before sending large amounts.
-- Do not commit private keys or secrets. Use environment vars and secret managers.
-- This contract is intended for testing and demonstration. If you plan to deploy on mainnet, consider a professional audit.
-
-Contributing
-- Bug reports and PRs are welcome.
-- Keep changes small and focused; include tests for new behavior.
-- Update README and docs when adding features.
-
-License & contact
-- License: MIT (or update to your preferred license)
-- Author: erikg713 — https://github.com/erikg713
