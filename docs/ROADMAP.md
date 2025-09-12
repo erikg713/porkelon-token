@@ -1,18 +1,18 @@
-# Porkelon (PORK) â€” 12-Week Roadmap
+# Porkelon (PORK) — 12-Week Roadmap
 
-This roadmap maps the verification, liquidity, marketing, and utility tasks into a practical 12-week timeline.
+This roadmap maps the verification, liquidity, marketing, and utility tasks into a practical 12-week timeline.  
 Place this file at `docs/roadmap.md` in your GitHub repository.
 
 ---
 
 ## Summary
-Focus: verification & trust â†’ liquidity & exposure â†’ community & marketing â†’ technical utility â†’ ongoing ops.
+Focus: verification & trust → liquidity & exposure → community & marketing → technical utility → ongoing ops.
 
 ---
 
 ## Week-by-week Plan
 
-### Weeks 1-2: Phase 1 â€” Verification & Trust
+### Weeks 1-2: Phase 1 — Verification & Trust
 - Week 1
   - Prepare high-res logo (transparent PNG) and token metadata.
   - Publish one-page tokenomics PDF and hosted webpage.
@@ -23,7 +23,7 @@ Focus: verification & trust â†’ liquidity & exposure â†’ community & m
   - Publish the "How to find the real PORKELON" guide on `docs/how_to_buy.md`.
   - Create a verified link set (website, twitter, github, discord).
 
-### Weeks 3-4: Phase 2 â€” Liquidity & Market Exposure
+### Weeks 3-4: Phase 2 — Liquidity & Market Exposure
 - Week 3
   - Create liquidity pair (PORKELON / USDC or PORKELON / SOL) on a chosen DEX.
   - Seed initial liquidity (decide % of supply) and document amounts.
@@ -33,7 +33,7 @@ Focus: verification & trust â†’ liquidity & exposure â†’ community & m
   - Submit token to tracking sites (Dexscreener, Solana trackers).
   - Create basic analytics dashboard links in `README.md`.
 
-### Weeks 5-6: Phase 3 â€” Community & Marketing
+### Weeks 5-6: Phase 3 — Community & Marketing
 - Week 5
   - Launch social channels and invite initial community (Discord, X, Telegram).
   - Start a content calendar (memes, facts, AMAs).
@@ -43,7 +43,7 @@ Focus: verification & trust â†’ liquidity & exposure â†’ community & m
   - Publish tutorials: "How to add PORKELON to Phantom" and "How to trade".
   - Update `docs/faq.md` with common Qs (fees, supply, mint address).
 
-### Weeks 7-8: Phase 4 â€” Technical Utility & Ecosystem
+### Weeks 7-8: Phase 4 — Technical Utility & Ecosystem
 - Week 7
   - Decide utility features: staking, burns, or exclusive access.
   - Prototype a simple staking smart contract or staking UI.
@@ -52,7 +52,7 @@ Focus: verification & trust â†’ liquidity & exposure â†’ community & m
   - Research Token-2022 TransferFee / TransferHook migration (if required).
   - If moving to Token-2022, draft migration plan & communication plan.
 
-### Weeks 9-10: Phase 5 â€” Governance & Security
+### Weeks 9-10: Phase 5 — Governance & Security
 - Week 9
   - Evaluate multisig options and set up a multisig for critical keys.
   - Publish transparency plan (monthly reports template in `docs/reports/`).
@@ -60,7 +60,7 @@ Focus: verification & trust â†’ liquidity & exposure â†’ community & m
   - If budget allows, run a lightweight security audit or community review.
   - Implement any urgent fixes or clarifications.
 
-### Weeks 11-12: Phase 6 â€” Growth Operations
+### Weeks 11-12: Phase 6 — Growth Operations
 - Week 11
   - Scale marketing campaigns (paid + organic), measure KPI.
   - Consider token utility launches or partnerships.
@@ -70,45 +70,17 @@ Focus: verification & trust â†’ liquidity & exposure â†’ community & m
 
 ---
 
-## Where to place files in your repo (recommended structure)
+## Repo File Structure (recommended)
 
-```
-/ (root)
-â”œâ”€ docs/
-â”‚  â”œâ”€ roadmap.md          # <-- This file (place here)
-â”‚  â”œâ”€ tokenomics.md
-â”‚  â”œâ”€ faq.md
-â”‚  â””â”€ how_to_buy.md
-â”œâ”€ scripts/
-â”‚  â”œâ”€ add_liquidity.sh
-â”‚  â”œâ”€ lock_liquidity.sh
-â”‚  â””â”€ deploy_anchor.sh
-â”œâ”€ contracts/
-â”‚  â””â”€ anchor/             # Anchor program sources (programs/)
-â”œâ”€ frontend/
-â”‚  â””â”€ staking/            # staking UI prototype
-â”œâ”€ .github/
-â”‚  â””â”€ workflows/
-â”‚     â””â”€ ci.yml
-â””â”€ README.md
-```
-
----
-
-## How to use the Python generator script
-I included a generator script (`scripts/generate_roadmap.py`) that writes `docs/roadmap.md`. Run it locally or in CI:
-
-```bash
-python3 scripts/generate_roadmap.py
-```
-
-It will overwrite `docs/roadmap.md` with the current roadmap content.
+/ (root) ├─ docs/ │  ├─ roadmap.md          # <-- This file │  ├─ tokenomics.md │  ├─ faq.md │  └─ how_to_buy.md ├─ scripts/ │  ├─ add_liquidity.sh │  ├─ lock_liquidity.sh │  └─ deploy_anchor.sh ├─ contracts/ │  └─ anchor/             # Anchor program sources ├─ frontend/ │  └─ staking/            # staking UI prototype ├─ .github/ │  └─ workflows/ │     └─ ci.yml └─ README.md
 
 ---
 
 ## Notes
-- Keep `docs/` docs under source control and update them as tasks complete.
-- Use PRs to change roadmap or tokenomics so the community can review.
-- For sensitive keys or scripts that require private keys (e.g., adding liquidity), never commit secrets â€” use environment variables or GitHub Actions secrets.
+- Keep `docs/` under source control and update as tasks complete.  
+- Use PRs for roadmap/tokenomics updates so the community can review.  
+- Never commit secrets in scripts — use env vars or GitHub Actions secrets.
+
 
 ---
+
