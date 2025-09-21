@@ -4,7 +4,7 @@ Porkelon Token (PORK) is a simple, lightweight deflationary token built on Moons
 transferring to polygon network via upgradeable erc20 smart contract.
 Quick facts
 - Ticker: **PORK**
-- Total supply: **1,000,000,000 PORK** (18 decimals)
+- Total supply: **100,000,000,000 PORK** (18 decimals)
 - Fee: **1%** of every transfer is forwarded to the configured marketing wallet
 - Network used in this repo: **Moonshot**
 - Features: Ownable, Mintable, Burnable, Transferable
