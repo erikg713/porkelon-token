@@ -6,7 +6,15 @@
 import fs from "fs";
 import path from "path";
 import { Wallet } from "ethers";
+import { Wallet } from "ethers";
 
+// Generate new wallet
+const wallet = Wallet.createRandom();
+
+console.log("=== MONAD TESTNET WALLET ===");
+console.log("Address:", wallet.address);
+console.log("Private Key:", wallet.privateKey);
+console.log("Mnemonic:", wallet.mnemonic.phrase);
 async function main() {
   const password = process.argv[2] || null;
   const wallet = Wallet.createRandom(); // secure RNG from node crypto
