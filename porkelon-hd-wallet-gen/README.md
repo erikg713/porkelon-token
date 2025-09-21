@@ -1,4 +1,4 @@
-# Porkelon HD Wallet Generator (Option B)
+# Porkelon HD Wallet Generator
 
 This package provides scripts to **generate a single HD mnemonic** and derive many Ethereum/Polygon addresses (MetaMask-compatible). Use this when migrating users/tokens from Solana to Polygon and you want deterministic derived addresses (one mnemonic controls multiple addresses).
 
