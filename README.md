@@ -1,7 +1,7 @@
 # 🐖 Porkelon Token (PORK)
 
 Porkelon Token (PORK) is a simple, lightweight deflationary token built on Moonshot for Solana. It implements a 1% and includes standard ERC-20 features (mint, burn, transfer) with Ownable access control.
-
+transferring to polygon network via upgradeable erc20 smart contract.
 Quick facts
 - Ticker: **PORK**
 - Total supply: **1,000,000,000 PORK** (18 decimals)
@@ -106,7 +106,8 @@ Environment variables (recommended)
 Add to `.env`:
 ```
 PRIVATE_KEY=0x...
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
+polygon
+/YOUR_INFURA_KEY
 MARKETING_WALLET=0xYourMarketingWalletAddress
 ETHERSCAN_API_KEY=YourEtherscanApiKey
 ```
