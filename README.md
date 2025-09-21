@@ -1,114 +1,34 @@
-# 🐖 Porkelon Token (PORK)
-
-Porkelon Token (PORK) is a simple, lightweight deflationary token built on Moonshot for Solana. It implements a 1% and includes standard ERC-20 features (mint, burn, transfer) with Ownable access control.
-transferring to polygon network via upgradeable erc20 smart contract.
-Quick facts
-- Ticker: **PORK**
-- Total supply: **100,000,000,000 PORK** (18 decimals)
-- Fee: **1%** of every transfer is forwarded to the configured marketing wallet
-- Network used in this repo: **Moonshot**
-- Features: Ownable, Mintable, Burnable, Transferable
-
-Table of contents
-- Requirements
-- Setup
-- Compile
-- Tests
-- Deploy
-- Verify on Solana
-- Interacting with the contract
-- Environment variables
-- Security & notes
-- Contributing & license
-
-Requirements
-
-Setup
-
-1. Clone the repo and install dependencies
-```bash
-git clone https://github.com/erikg713/porkelon-token.git
-cd porkelon-token
-npm install
-# or
-# yarn
-```
-
-2. Copy the example environment file and fill in the required values
-```bash
-cp .env.example .env
-```
-Open `.env` and set:
-- PRIVATE_KEY — deployer account private key (never commit this)
-- SEPOLIA_RPC_URL — Sepolia JSON-RPC endpoint (Infura/Alchemy)
-- MARKETING_WALLET — address that will receive the 1% fees
-- ETHERSCAN_API_KEY — (optional) for contract verification
-
-(If a `.env.example` file is not present, create a `.env` with the keys above.)
-
-Compile
-```bash
-npx hardhat compile
-```
-
-Tests
-Unit tests are included and runnable with:
-```bash
-npm test
-# or
-npx hardhat test
-```
-Tests run on Hardhat's in-memory network by default. They validate token behavior, fee routing, mint/burn, and access control.
-
-Deploy (Sepolia)
-There are convenience npm scripts. The deploy script reads your `.env` to get the deployer key, RPC URL and marketing wallet.
-
-Example:
-```bash
-# builds and deploys to Sepolia using the configured deploy script
-npm run deploy:sepolia
-```
-
-Under the hood you can run:
-```bash
-npx hardhat run scripts/deploy.js --network sepolia
-```
-
-Note: Make sure your `.env` contains PRIVATE_KEY, SEPOLIA_RPC_URL, and MARKETING_WALLET. The script will print the deployed contract address after successful deployment — copy it for verification and further interaction.
-
-Verify on Etherscan
-After deploying, you can verify the contract on Etherscan (if ETHERSCAN_API_KEY is set):
-
-```bash
-npx hardhat verify --network sepolia DEPLOYED_ADDRESS "0xMarketingWallet"
-```
-
-Replace `DEPLOYED_ADDRESS` with the address printed after deployment and replace the constructor arg with your marketing wallet (or leave quotes as a single string if required).
-
-Interacting with the contract
-You can interact via:
-- Hardhat console
-- Ethers.js / Web3 scripts
-- Frontend connected to Sepolia
-
-Example (Hardhat console):
-```bash
-npx hardhat console --network sepolia
-> const [deployer] = await ethers.getSigners()
-> const Token = await ethers.getContractFactory("PorkelonToken")
-> const token = Token.attach("DEPLOYED_ADDRESS")
-> await token.transfer("0xrecipient", ethers.utils.parseUnits("1000", 18))
-```
-
-When transfers happen, 1% of the amount is automatically sent to the configured marketing wallet (as part of the token's transfer logic).
-
-Environment variables (recommended)
-Add to `.env`:
-```
-PRIVATE_KEY=0x...
-polygon
-/YOUR_INFURA_KEY
-MARKETING_WALLET=0xYourMarketingWalletAddress
-ETHERSCAN_API_KEY=YourEtherscanApiKey
-```
-
+Overview
+Porkelon (PORK) is an upgradable ERC-20 token on the Polygon network, designed as a meme/utility token with a capped supply of 100 billion tokens. It includes features like burnability, pausability, ownable control, a 1% transaction fee to a team wallet, and predefined allocations for dev, staking/rewards, liquidity, marketing, airdrops, and presale. The token is non-mintable after initialization to enforce the max supply.
+This repository contains:
+The main token smart contract (Porkelon.sol).
+A presale contract (PorkelonPresale.sol).
+Bash scripts for adding liquidity (scripts/add_liquidity.sh) and locking liquidity (scripts/lock_liquidity.sh).
+Deployment and usage instructions.
+The project emphasizes low fees on Polygon, upgradeability via UUPS proxy, and community trust through liquidity locking.
+Features
+Token Standard: ERC-20 (upgradeable).
+Total Supply: 100,000,000,000 PORK (capped, no further minting).
+Decimals: 18.
+Transaction Fee: 1% on every transfer (sent to team wallet; excludes mints/burns).
+Allocations:
+20% Dev wallet.
+5% Staking and rewards.
+25% Liquidity (locked for 1 year).
+10% Marketing and advertising.
+10% Airdrops.
+30% Presale.
+Security: Pausable, burnable, ownable, role-based access control.
+Upgradeable: Via UUPS proxy for future enhancements (e.g., adding taxes or features).
+Presale: Dedicated contract for fair token distribution.
+Liquidity: Added to QuickSwap DEX and locked via Unicrypt for 1 year.
+Cross-Chain Migration: Guidance for migrating from Solana (original Moonshot deployment).
+Prerequisites
+Wallet: MetaMask or similar, connected to Polygon mainnet (Chain ID: 137, RPC: https://polygon-rpc.com).
+Funds: POL (Polygon's native token) for gas fees (~$1 total for deployment/scripts).
+Tools:
+Remix IDE for simple deployment.
+Hardhat for advanced deployment/testing.
+Foundry for scripts (install via curl -L https://foundry.paradigm.xyz | bash then foundryup).
+Node.js for Hardhat.
+Libraries: OpenZeppelin contracts (imported in Solidity files).
