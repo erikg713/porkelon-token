@@ -1,0 +1,16 @@
+{
+  "name": "porkelon-hd-wallet-gen",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "HD wallet generator for Porkelon migration (Solana -> Polygon).",
+  "main": "generate_hd_wallets.js",
+  "scripts": {
+    "start": "node generate_hd_wallets.js 10 \"YourStrongPassword!\""
+  },
+  "dependencies": {
+    "bip39": "^3.0.4",
+    "csv-parse": "^5.0.4",
+    "csv-stringify": "^6.0.5",
+    "ethers": "^6.0.0"
+  }
+}
