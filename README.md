@@ -1,4 +1,4 @@
-### Porkelon (PORK) ###
+### Porkelon-Token ($PORK) ###
 -------------------------
 is an upgradable ERC-20 token on the Polygon network, designed as a meme/utility token with a capped supply of 100 billion tokens. It includes features like burnability, pausability, ownable control, a 1% transaction fee to a team wallet, and predefined allocations for dev, staking/rewards, liquidity, marketing, airdrops, and presale. The token is non-mintable after initialization to enforce the max supply.
 This repository contains:
