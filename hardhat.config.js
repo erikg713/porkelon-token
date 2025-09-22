@@ -1,74 +1,20 @@
-/**
- * Hardhat configuration
- *
- * Clean, explicit, and resilient configuration that:
- * - Enables optimizer for production-like builds
- * - Normalizes private key inputs safely (supports comma-separated keys)
- * - Conditionally enables networks from env vars (no accidental overruns)
- * - Provides friendly defaults for mocha and compiler settings
- *
- * Notes:
- * - Keep secrets out of source control. Use a .env file or CI secrets.
- * - If you want gas reporting or hardhat-deploy features, install those plugins
- *   (hardhat-gas-reporter, hardhat-deploy) and enable them via environment variables.
- */
-
-require("dotenv").config();
 require("@nomicfoundation/hardhat-toolbox");
+require("dotenv").config();
 
-const {
-  PRIVATE_KEY = "",
-  SEPOLIA_RPC = "",
-  MAINNET_RPC = "",
-  POLYGON_RPC = "",
-  ETHERSCAN_API_KEY = "",
-  POLYGONSCAN_API_KEY = "",
-  COINMARKETCAP_API_KEY = "",
-  REPORT_GAS = "false"
-} = process.env;
-
-/**
- * Safely parse private key(s) from env var.
- * Accepts:
- * - single key: "0xabc..."
- * - multiple keys: "0xaaa...,0xbbb..."
- * - without 0x prefix: "aaa,bbb" -> will be normalized
- *
- * Returns an array suitable for Hardhat's `accounts` field.
- */
-function parsePrivateKeys(raw) {
-  if (!raw || typeof raw !== "string") return [];
-  return raw
-    .split(",")
-    .map(k => k.trim())
-    .filter(Boolean)
-    .map(k => (k.startsWith("0x") ? k : `0x${k}`));
-}
-
-const privateKeys = parsePrivateKeys(PRIVATE_KEY);
-
-const networks = {
-  hardhat: {
-    chainId: 1337,
-    // keep the default network fast and deterministic for local testing
-    allowUnlimitedContractSize: false
-  }
+module.exports = {
+  solidity: "0.8.20",
+  networks: {
+    polygon: {
+      url: process.env.POLYGON_RPC,
+      accounts: [process.env.PRIVATE_KEY],
+    },
+    mumbai: {
+      url: "https://rpc-mumbai.maticvigil.com",
+      accounts: [process.env.PRIVATE_KEY],
+    },
+  },
 };
-
-// Add named public networks only when RPC URL is provided to avoid accidental use.
-if (SEPOLIA_RPC) {
-  networks.sepolia = {
-    url: SEPOLIA_RPC,
-    accounts: privateKeys,
-    chainId: 11155111
-  };
-}
-
-if (MAINNET_RPC) {
-  networks.mainnet = {
-    url: MAINNET_RPC,
-    accounts: privateKeys,
-    chainId: 1
+chainId: 1
   };
 }
 
