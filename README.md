@@ -33,3 +33,64 @@ Hardhat for advanced deployment/testing.
 Foundry for scripts (install via curl -L https://foundry.paradigm.xyz | bash then foundryup).
 Node.js for Hardhat.
 Libraries: OpenZeppelin contracts (imported in Solidity files).
+🔄 Porkelon Token Migration Plan
+
+1. Snapshot on Solana
+
+Freeze or mark the final supply on Solana (1B).
+
+Take a snapshot of all Solana holders + balances (via Solscan or Solana program).
+
+Export snapshot to CSV/JSON for migration mapping.
+
+
+2. Deploy Porkelon v2 on Polygon
+
+Deploy the PorkelonPolygon.sol contract (100B supply).
+
+Tokenomics built in:
+
+✅ Staking (10%) → 10B PORK
+
+✅ Airdrops (10%) → 10B PORK
+
+✅ Presale (10%) → 10B PORK
+
+✅ Rewards (10%) → 10B PORK
+
+✅ Team (20%) → 20B PORK (vesting recommended)
+
+✅ Liquidity Lock (40%) → 40B PORK (locked 365 days)
+
+
+
+> Allocation happens at deployment: contract mints and distributes automatically.
+
+
+
+3. Bridge/Migration Process
+
+Since Solana ↔ Polygon are different chains, you can’t “move” tokens directly. Instead:
+
+Burn old Solana supply (send to dead address).
+
+Distribute new Polygon tokens based on snapshot:
+
+Create a claim portal (DApp) where old holders can claim new PORK by proving Solana ownership.
+
+Alternatively, airdrop Polygon PORK directly to their mapped wallets (if you collect addresses).
+
+
+
+4. Liquidity Lock (365 Days)
+
+Use Unicrypt / Team Finance / Gnosis Safe to lock liquidity tokens from DEX (like QuickSwap).
+
+Lock duration: 365 days minimum.
+
+
+5. Presale + Staking + Rewards
+
+Presale handled via a Presale contract (users send MATIC/USDT, get PORK).
+
+Staking contract: users stake PORK to earn rewards.
