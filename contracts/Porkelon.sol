@@ -3,74 +3,51 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
-contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, OwnableUpgradeable, PausableUpgradeable, UUPSUpgradeable, AccessControlUpgradeable {
+contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, PausableUpgradeable, AccessControlUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
-    address public teamWallet;
-    uint256 public constant MAX_SUPPLY = 100_000_000_000 * 10**18;
-    uint256 public constant FEE_PERCENT = 1;
+    uint256 public constant MAX_SUPPLY = 100_000_000_000 * 10**18; // 100 billion tokens with 18 decimals
+    address public teamWallet; // Wallet for collecting 1% transaction fees
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(
-        address _teamWallet,
-        address _presaleWallet,
-        address _airdropWallet,
-        address _stakingWallet,
-        address _rewardsWallet,
-        address _liquidityWallet
-    ) public initializer {
+    function initialize(address _teamWallet) initializer public {
         __ERC20_init("Porkelon", "PORK");
         __ERC20Burnable_init();
-        __Ownable_init();
         __Pausable_init();
-        __UUPSUpgradeable_init();
         __AccessControl_init();
-
-        teamWallet = _teamWallet;
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
 
-        // Mint and allocate (no further minting possible as no mint function exposed)
-        uint256 teamAmount = MAX_SUPPLY * 20 / 100;
-        uint256 presaleAmount = MAX_SUPPLY * 10 / 100;
-        uint256 airdropAmount = MAX_SUPPLY * 10 / 100;
-        uint256 stakingAmount = MAX_SUPPLY * 10 / 100;
-        uint256 rewardsAmount = MAX_SUPPLY * 10 / 100;
-        uint256 liquidityAmount = MAX_SUPPLY * 40 / 100;
+        teamWallet = _teamWallet; // Set the team wallet for fees (replace with actual address when deploying)
 
-        _mint(_teamWallet, teamAmount);
-        _mint(_presaleWallet, presaleAmount);
-        _mint(_airdropWallet, airdropAmount);
-        _mint(_stakingWallet, stakingAmount);
-        _mint(_rewardsWallet, rewardsAmount);
-        _mint(_liquidityWallet, liquidityAmount);
-    }
+        // Mint the entire max supply at initialization
+        uint256 totalSupplyToMint = MAX_SUPPLY;
 
-    function _update(address from, address to, uint256 amount) internal override {
-        require(!paused(), "Porkelon: token transfer paused");
-        if (from == address(0) || to == address(0)) {
-            // No fee on mint or burn
-            super._update(from, to, amount);
-        } else {
-            // Apply 1% fee to team wallet
-            uint256 fee = amount * FEE_PERCENT / 100;
-            uint256 amountAfterFee = amount - fee;
-            super._update(from, to, amountAfterFee);
-            super._update(from, teamWallet, fee);
-        }
+        // Allocations (replace placeholder addresses with actual wallet addresses)
+        _mint(address(0xYourDevWalletAddressHere), (totalSupplyToMint * 20) / 100); // 20% to dev wallet (20B tokens)
+        _mint(address(0xYourStakingRewardsWalletAddressHere), (totalSupplyToMint * 5) / 100); // 5% for staking and rewards (5B tokens)
+        _mint(address(0xYourLiquidityWalletAddressHere), (totalSupplyToMint * 25) / 100); // 25% for liquidity lock (25B tokens)
+        _mint(address(0xYourMarketingWalletAddressHere), (totalSupplyToMint * 10) / 100); // 10% for marketing and advertising (10B tokens)
+        _mint(address(0xYourAirdropsWalletAddressHere), (totalSupplyToMint * 10) / 100); // 10% for airdrops (10B tokens)
+        _mint(address(0xYourPresaleWalletAddressHere), (totalSupplyToMint * 30) / 100); // 30% for presale (30B tokens; handle presale separately)
+
+        // Revoke minter role to prevent any further minting (supply is capped forever)
+        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender); // Removes ability to grant minter role again
     }
 
     function pause() public onlyRole(PAUSER_ROLE) {
@@ -81,5 +58,25 @@ contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
+    // No mint function exposed, as all supply is minted at init and role revoked
+
+    function _authorizeUpgrade(address newImplementation) internal onlyRole(UPGRADER_ROLE) override {}
+
+    // Override to apply 1% fee on transfers (not on mints/burns)
+    function _update(address from, address to, uint256 value) internal override whenNotPaused {
+        if (from != address(0) && to != address(0) && teamWallet != address(0)) { // Apply fee only on transfers
+            uint256 fee = (value * 1) / 100; // 1% fee
+            uint256 amountAfterFee = value - fee;
+            super._update(from, teamWallet, fee); // Send fee to team wallet
+            super._update(from, to, amountAfterFee); // Send remaining to recipient
+        } else {
+            super._update(from, to, value);
+        }
+    }
+
+    // Optional: Function to update team wallet (only owner, for flexibility)
+    function setTeamWallet(address newTeamWallet) public onlyOwner {
+        require(newTeamWallet != address(0), "Invalid address");
+        teamWallet = newTeamWallet;
+    }
 }
