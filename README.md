@@ -94,3 +94,32 @@ Lock duration: 365 days minimum.
 Presale handled via a Presale contract (users send MATIC/USDT, get PORK).
 
 Staking contract: users stake PORK to earn rewards.
+Next Steps for Deployment
+Prepare .env:
+Copy .env.example to .env:
+cp .env.example .env
+Fill in real values:
+PRIVATE_KEY: Your wallet’s private key (never share it).
+RPC URLs: Use reliable providers (e.g., Alchemy, Infura) for POLYGON_RPC and MUMBAI_RPC.
+Wallet addresses: Ensure all allocation wallets (TEAM_WALLET, etc.) are valid Ethereum addresses.
+API keys: Get a POLYGONSCAN_API_KEY from Polygonscan for contract verification.
+Test Locally:
+Start a local Hardhat node:
+npx hardhat node
+Deploy to the local network:
+npx hardhat run scripts/deploy.js --network hardhat
+Write tests in test/ folder using Mocha/Chai to verify contract behavior.
+Test on Mumbai:
+Fund your deployer wallet with MATIC on Mumbai (use a faucet like https://mumbaifaucet.com).
+Run:
+./scripts/deploy.sh mumbai
+Verify the contract on Polygonscan (Mumbai explorer).
+Deploy to Polygon Mainnet:
+Ensure your deployer wallet has enough MATIC for gas (check gas prices on https://polygonscan.com/gastracker).
+Run:
+./scripts/deploy.sh polygon
+Verify the contract on Polygonscan.
+Post-Deployment:
+Save the contract address from deployed-address.txt.
+Verify the contract on Polygonscan (if not automated in deploy.js).
+If the contract is an ERC-20 token, add it to DEXs (e.g., QuickSwap) or update token metadata on CoinMarketCap (using COINMARKETCAP_API_KEY).
