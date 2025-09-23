@@ -1,33 +1,54 @@
 // scripts/deploy.js
-const hre = require("hardhat");
+const { ethers, upgrades } = require("hardhat");
 require("dotenv").config();
 
 async function main() {
-  const { ethers } = hre;
-  const walletAddress = (await ethers.getSigners())[0].address;
-  console.log("Deploying from:", walletAddress);
+  const [deployer] = await ethers.getSigners();
 
-  // Compile
-  await hre.run("compile");
+  console.log("======================================");
+  console.log("🚀 Deploying Porkelon Upgradeable Token to Polygon...");
+  console.log("👤 Deployer Address:", deployer.address);
+  console.log("💰 Balance:", (await deployer.getBalance()).toString());
+  console.log("======================================");
 
-  // Factory
+  // Load contract
   const Porkelon = await ethers.getContractFactory("Porkelon");
 
-  // Total supply: 100,000,000,000 tokens with 18 decimals
-  const totalSupply = ethers.utils.parseUnits("100000000000", 18);
+  // Initial supply (100B tokens with 18 decimals)
+  const totalSupply = ethers.utils.parseUnits(
+    process.env.TOTAL_SUPPLY || "100000000000",
+    18
+  );
 
-  console.log("Deploying Porkelon with total supply:", totalSupply.toString());
+  // Deploy as upgradeable proxy (UUPS)
+  const porkelon = await upgrades.deployProxy(
+    Porkelon,
+    [totalSupply],
+    { kind: "uups" }
+  );
+  await porkelon.waitForDeployment();
 
-  const contract = await Porkelon.deploy(totalSupply);
-  await contract.deployed();
+  console.log("✅ Porkelon Proxy deployed to:", await porkelon.getAddress());
 
-  console.log("Porkelon deployed at:", contract.address);
-  console.log("Done.");
+  // Optional: verify on PolygonScan
+  if (process.env.POLYGONSCAN_API_KEY) {
+    console.log("🔍 Verifying implementation contract...");
+    const impl = await upgrades.erc1967.getImplementationAddress(await porkelon.getAddress());
+    try {
+      await hre.run("verify:verify", {
+        address: impl,
+        constructorArguments: [],
+      });
+      console.log("✅ Verified implementation at:", impl);
+    } catch (e) {
+      console.warn("⚠️ Verification skipped:", e.message);
+    }
+  }
+
+  console.log("🎉 Deployment complete.");
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
+main().catch((err) => {
+  console.error("❌ Deployment failed:", err);
+  process.exitCode = 1;
+});
