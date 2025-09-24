@@ -1,60 +1,56 @@
 const { ethers, upgrades } = require("hardhat");
-
-async function main() {
-  const Porkelon = await ethers.getContractFactory("Porkelon");
-  const porkelon = await upgrades.deployProxy(Porkelon, ["0xYourTeamWalletHere"], { initializer: 'initialize', kind: 'uups' });
-  console.log("Porkelon deployed to:", await porkelon.getAddress());
-}
-
-main();
-
-const { ethers, upgrades } = require("hardhat");
 require("dotenv").config();
 
 async function main() {
   const [deployer] = await ethers.getSigners();
 
   console.log("======================================");
-  console.log("🚀 Deploying Porkelon Upgradeable Token to Polygon...");
+  console.log("🚀 Deploying Upgradeable PorkelonPolygon Token to Polygon...");
   console.log("👤 Deployer Address:", deployer.address);
-  console.log("💰 Balance:", (await deployer.getBalance()).toString());
+  console.log("💰 Balance:", ethers.formatEther(await deployer.getBalance()));
   console.log("======================================");
 
-  // Load contract
-  const Porkelon = await ethers.getContractFactory("Porkelon");
+  // Load wallet addresses from .env
+  const TEAM_WALLET = process.env.TEAM_WALLET;
+  const LIQUIDITY_WALLET = process.env.LIQUIDITY_WALLET;
 
-  // Initial supply (100B tokens with 18 decimals)
-  const totalSupply = ethers.utils.parseUnits(
-    process.env.TOTAL_SUPPLY || "100000000000",
-    18
-  );
+  if (!TEAM_WALLET || !LIQUIDITY_WALLET) {
+    throw new Error("⚠️ Missing TEAM_WALLET or LIQUIDITY_WALLET in .env");
+  }
+
+  // Load contract factory
+  const PorkelonPolygon = await ethers.getContractFactory("PorkelonPolygon");
 
   // Deploy as upgradeable proxy (UUPS)
   const porkelon = await upgrades.deployProxy(
-    Porkelon,
-    [totalSupply],
-    { kind: "uups" }
+    PorkelonPolygon,
+    [TEAM_WALLET, LIQUIDITY_WALLET],
+    { initializer: "initialize", kind: "uups" }
   );
   await porkelon.waitForDeployment();
 
-  console.log("✅ Porkelon Proxy deployed to:", await porkelon.getAddress());
+  const proxyAddress = await porkelon.getAddress();
+  console.log("✅ PorkelonPolygon Proxy deployed to:", proxyAddress);
+
+  // Get implementation address
+  const implAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
+  console.log("🛠️ Implementation address:", implAddress);
 
   // Optional: verify on PolygonScan
   if (process.env.POLYGONSCAN_API_KEY) {
     console.log("🔍 Verifying implementation contract...");
-    const impl = await upgrades.erc1967.getImplementationAddress(await porkelon.getAddress());
     try {
       await hre.run("verify:verify", {
-        address: impl,
+        address: implAddress,
         constructorArguments: [],
       });
-      console.log("✅ Verified implementation at:", impl);
+      console.log("✅ Verified implementation at:", implAddress);
     } catch (e) {
       console.warn("⚠️ Verification skipped:", e.message);
     }
   }
 
-  console.log("🎉 Deployment complete.");
+  console.log("🎉 Deployment complete. Proxy is ready for upgrades.");
 }
 
 main().catch((err) => {
