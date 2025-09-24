@@ -13,7 +13,7 @@ contract PorkelonPresale is Ownable, ReentrancyGuard {
     uint256 public startTime; // Presale start timestamp
     uint256 public endTime; // Presale end timestamp
     uint256 public tokensSold; // Track tokens sold
-    uint256 public presaleCap; // Total tokens available for presale (e.g., 30B)
+    uint256 public presaleCap; // Total tokens available for presale (e.g., 10B)
 
     mapping(address => uint256) public contributions; // Track user contributions
 
