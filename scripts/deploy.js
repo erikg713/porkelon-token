@@ -1,4 +1,13 @@
-// scripts/deploy.js
+const { ethers, upgrades } = require("hardhat");
+
+async function main() {
+  const Porkelon = await ethers.getContractFactory("Porkelon");
+  const porkelon = await upgrades.deployProxy(Porkelon, ["0xYourTeamWalletHere"], { initializer: 'initialize', kind: 'uups' });
+  console.log("Porkelon deployed to:", await porkelon.getAddress());
+}
+
+main();
+
 const { ethers, upgrades } = require("hardhat");
 require("dotenv").config();
 
