@@ -2,6 +2,14 @@ require("@nomicfoundation/hardhat-toolbox");
 require("@openzeppelin/hardhat-upgrades");
 require("dotenv").config();
 
+const { ethers, upgrades } = require("hardhat");
+
+async function main() {
+  const PorkelonPolygon = await ethers.getContractFactory("PorkelonPolygon");
+  const porkelon = await upgrades.deployProxy(PorkelonPolygon, ["0xYourDevWalletHere", "0xYourLiquidityWalletHere"], { initializer: 'initialize', kind: 'uups' });
+  console.log("Porkelon deployed to:", await porkelon.getAddress());
+}
+
 const { PRIVATE_KEY, POLYGON_RPC, MUMBAI_RPC, POLYGONSCAN_API_KEY } = process.env;
 
 module.exports = {
@@ -25,3 +33,4 @@ module.exports = {
     },
   },
 };
+ main },
