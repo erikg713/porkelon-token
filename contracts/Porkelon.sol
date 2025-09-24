@@ -39,12 +39,12 @@ contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 totalSupplyToMint = MAX_SUPPLY;
 
         // Allocations (replace placeholder addresses with actual wallet addresses)
-        _mint(address(0xYourDevWalletAddressHere), (totalSupplyToMint * 20) / 100); // 20% to dev wallet (20B tokens)
-        _mint(address(0xYourStakingRewardsWalletAddressHere), (totalSupplyToMint * 5) / 100); // 5% for staking and rewards (5B tokens)
-        _mint(address(0xYourLiquidityWalletAddressHere), (totalSupplyToMint * 25) / 100); // 25% for liquidity lock (25B tokens)
+        _mint(address(0xYourDevWalletAddressHere), (totalSupplyToMint * 25) / 100); // 25% to dev wallet (25B tokens)
+        _mint(address(0xYourStakingRewardsWalletAddressHere), (totalSupplyToMint * 10) / 100); // 10% for staking and rewards (10B tokens)
+        _mint(address(0xYourLiquidityWalletAddressHere), (totalSupplyToMint * 40) / 100); // 40% for liquidity lock (40B tokens)
         _mint(address(0xYourMarketingWalletAddressHere), (totalSupplyToMint * 10) / 100); // 10% for marketing and advertising (10B tokens)
-        _mint(address(0xYourAirdropsWalletAddressHere), (totalSupplyToMint * 10) / 100); // 10% for airdrops (10B tokens)
-        _mint(address(0xYourPresaleWalletAddressHere), (totalSupplyToMint * 30) / 100); // 30% for presale (30B tokens; handle presale separately)
+        _mint(address(0xYourAirdropsWalletAddressHere), (totalSupplyToMint * 5) / 100); // 5% for airdrops (5B tokens)
+        _mint(address(0xYourPresaleWalletAddressHere), (totalSupplyToMint * 10) / 100); // 10% for presale (10B tokens; handle presale separately)
 
         // Revoke minter role to prevent any further minting (supply is capped forever)
         _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender); // Removes ability to grant minter role again
