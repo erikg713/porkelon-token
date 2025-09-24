@@ -1,6 +1,7 @@
 ### Porkelon-Token ($PORK) ###
 -------------------------
-is an upgradable ERC-20 token on the Polygon network, designed as a meme/utility token with a capped supply of 100 billion tokens. It includes features like burnability, pausability, ownable control, a 1% transaction fee to a team wallet, and predefined allocations for dev, staking/rewards, liquidity, marketing, airdrops, and presale. The token is non-mintable after initialization to enforce the max supply.
+is an upgradable ERC-20 token on the Polygon network, designed as a meme/utility token with a capped supply of 100 billion tokens. It includes features like burnability, pausability, ownable control, a 1% transaction fee to a team wallet, and predefined allocations for dev, staking/rewards, liquidity, marketing, airdrops, and presale. 
+The token is non-mintable after initialization to enforce the max supply.
 This repository contains:
 The main token smart contract (PorkelonPolygon.sol).
 A presale contract (PorkelonPresale.sol).
@@ -123,3 +124,27 @@ Post-Deployment:
 Save the contract address from deployed-address.txt.
 Verify the contract on Polygonscan (if not automated in deploy.js).
 If the contract is an ERC-20 token, add it to DEXs (e.g., QuickSwap) or update token metadata on CoinMarketCap (using COINMARKETCAP_API_KEY).
+-----------------------------
+---
+------------------------------
+WALLET INTEGRATION 
+--------------------------
+Wallet Integration
+Porkelon (PORK) is an ERC-20 token on Polygon (chain ID: 137). Users can add it to wallets like MetaMask and Trust Wallet for viewing balances, sending/receiving, and interacting with dApps (e.g., staking or presale).
+Manual Addition Instructions
+MetaMask (Desktop/Mobile)
+Open MetaMask and switch to Polygon Mainnet (if not added: Settings > Networks > Add Network; RPC: https://polygon-rpc.com, Chain ID: 137, Symbol: POL, Explorer: https://polygonscan.com).
+In Assets tab, click "Import tokens".
+Enter:
+Token Contract Address: 0xYourDeployedPorkelonAddressHere
+Token Symbol: PORK
+Token Decimals: 18
+Click "Add Custom Token" > "Import Tokens".
+Trust Wallet (Mobile)
+Open Trust Wallet app.
+Search for "Polygon" and add the network if needed (similar details as above).
+On the main screen, tap "+" (Add Custom Token).
+Select Polygon network, paste contract address: 0xYourDeployedPorkelonAddressHere.
+It auto-fills symbol (PORK) and decimals (18). Tap "Save".
+Automated Addition (Website/dApp Integration)
+For your project site, add buttons to trigger wallet APIs. This uses Ethereum Provider API (injected by wallets). Works for MetaMask (desktop/browser extension) and Trust Wallet (via WalletConnect or in-app browser).
