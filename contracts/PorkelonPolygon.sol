@@ -1,4 +1,81 @@
 // SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+contract PorkelonPolygon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+    address public deployerWallet;
+    address public presaleWallet;
+    address public airdropWallet;
+    address public stakingRewardsWallet;
+    address public liquidityWallet;
+
+    event Initialized(address indexed owner, uint256 totalSupply);
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address _deployerWallet,
+        address _presaleWallet,
+        address _airdropWallet,
+        address _stakingRewardsWallet,
+        address _liquidityWallet
+    ) public initializer {
+        __ERC20_init("Porkelon", "PORK");
+        __ERC20Burnable_init();
+        __Ownable_init();
+        __UUPSUpgradeable_init();
+
+        deployerWallet = _deployerWallet;
+        presaleWallet = _presaleWallet;
+        airdropWallet = _airdropWallet;
+        stakingRewardsWallet = _stakingRewardsWallet;
+        liquidityWallet = _liquidityWallet;
+
+        uint256 total = 100_000_000_000 * (10 ** decimals());
+
+        // Mint allocations
+        _mint(deployerWallet, (total * 25) / 100);       // 25B for team -> deployer wallet
+        _mint(stakingRewardsWallet, (total * 10) / 100); // 10B for staking/rewards
+        _mint(liquidityWallet, (total * 40) / 100);      // 40B liquidity
+        _mint(_deployerWallet, (total * 10) / 100);      // 10B marketing/ads
+        _mint(airdropWallet, (total * 5) / 100);         // 5B airdrops
+        _mint(presaleWallet, (total * 10) / 100);        // 10B presale
+
+        transferOwnership(_deployerWallet);
+
+        emit Initialized(_deployerWallet, total);
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    function allocationAmounts() external pure returns (
+        uint256 deployerAmt,
+        uint256 stakingAmt,
+        uint256 liquidityAmt,
+        uint256 marketingAmt,
+        uint256 airdropAmt,
+        uint256 presaleAmt,
+        uint256 totalSupply
+    ) {
+        totalSupply = 100_000_000_000 * (10 ** 18);
+        deployerAmt = (totalSupply * 25) / 100;
+        stakingAmt = (totalSupply * 10) / 100;
+        liquidityAmt = (totalSupply * 40) / 100;
+        marketingAmt = (totalSupply * 10) / 100;
+        airdropAmt = (totalSupply * 5) / 100;
+        presaleAmt = (totalSupply * 10) / 100;
+    }
+}
+
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 /*
