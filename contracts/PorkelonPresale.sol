@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /**
  * @title PorkelonPresale
  * @dev Manages PORK token presale with MATIC and USDT payments.
  */
-contract PorkelonPresale is Ownable, ReentrancyGuard {
+contract PorkelonPresale is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeMath for uint256;
 
     IERC20 public immutable token;
@@ -29,7 +29,24 @@ contract PorkelonPresale is Ownable, ReentrancyGuard {
     event FundsWalletUpdated(address indexed oldWallet, address indexed newWallet);
     event TokensWithdrawn(address indexed owner, uint256 amount);
 
-    constructor(
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @dev Initializes the presale contract.
+     * @param _token PORK token address.
+     * @param _usdt USDT token address.
+     * @param _tokenPriceMatic Tokens per MATIC.
+     * @param _tokenPriceUsdt Tokens per USDT.
+     * @param _minPurchase Minimum purchase amount.
+     * @param _maxPurchase Maximum purchase amount.
+     * @param _startTime Presale start timestamp.
+     * @param _endTime Presale end timestamp.
+     * @param _cap Total PORK tokens available.
+     */
+    function initialize(
         IERC20 _token,
         IERC20 _usdt,
         uint256 _tokenPriceMatic,
@@ -39,7 +56,7 @@ contract PorkelonPresale is Ownable, ReentrancyGuard {
         uint256 _startTime,
         uint256 _endTime,
         uint256 _cap
-    ) Ownable(msg.sender) {
+    ) external initializer {
         require(address(_token) != address(0), "PorkelonPresale: Invalid token address");
         require(address(_usdt) != address(0), "PorkelonPresale: Invalid USDT address");
         require(_tokenPriceMatic > 0, "PorkelonPresale: Invalid MATIC price");
@@ -49,6 +66,9 @@ contract PorkelonPresale is Ownable, ReentrancyGuard {
         require(_startTime > block.timestamp, "PorkelonPresale: Start time in past");
         require(_endTime > _startTime, "PorkelonPresale: End time <= start");
         require(_cap > 0, "PorkelonPresale: Invalid cap");
+
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
 
         token = _token;
         usdt = _usdt;
@@ -62,6 +82,9 @@ contract PorkelonPresale is Ownable, ReentrancyGuard {
         fundsWallet = msg.sender;
     }
 
+    /**
+     * @dev Buy PORK tokens with MATIC.
+     */
     function buyWithMatic() external payable nonReentrant {
         require(block.timestamp >= startTime && block.timestamp <= endTime, "PorkelonPresale: Not active");
         require(msg.value >= minPurchase && msg.value <= maxPurchase, "PorkelonPresale: Invalid MATIC amount");
@@ -74,6 +97,10 @@ contract PorkelonPresale is Ownable, ReentrancyGuard {
         emit Bought(msg.sender, msg.value, tokenAmount, true);
     }
 
+    /**
+     * @dev Buy PORK tokens with USDT.
+     * @param usdtAmount Amount of USDT to spend.
+     */
     function buyWithUsdt(uint256 usdtAmount) external nonReentrant {
         require(block.timestamp >= startTime && block.timestamp <= endTime, "PorkelonPresale: Not active");
         require(usdtAmount >= minPurchase && usdtAmount <= maxPurchase, "PorkelonPresale: Invalid USDT amount");
@@ -86,6 +113,10 @@ contract PorkelonPresale is Ownable, ReentrancyGuard {
         emit Bought(msg.sender, usdtAmount, tokenAmount, false);
     }
 
+    /**
+     * @dev Updates funds wallet.
+     * @param _newWallet New funds wallet address.
+     */
     function setFundsWallet(address _newWallet) external onlyOwner {
         require(_newWallet != address(0), "PorkelonPresale: Invalid wallet");
         address oldWallet = fundsWallet;
@@ -93,6 +124,9 @@ contract PorkelonPresale is Ownable, ReentrancyGuard {
         emit FundsWalletUpdated(oldWallet, _newWallet);
     }
 
+    /**
+     * @dev Withdraws remaining tokens after presale.
+     */
     function withdrawRemainingTokens() external onlyOwner {
         require(block.timestamp > endTime, "PorkelonPresale: Still active");
         uint256 remaining = token.balanceOf(address(this));
