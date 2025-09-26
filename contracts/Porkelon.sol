@@ -12,7 +12,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 /**
  * @title Porkelon
  * @dev Upgradeable ERC20 token on Polygon with burnable, pausable, and 1% transfer fee features.
- *      Uses UUPS proxy and role-based access control.
+ *      Uses UUPS proxy and role-based access control. Team wallet is fully spendable.
  */
 contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, OwnableUpgradeable, PausableUpgradeable, UUPSUpgradeable, AccessControlUpgradeable {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -31,7 +31,7 @@ contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /**
      * @dev Initializes the contract with wallet allocations.
-     * @param _teamWallet 25% allocation for development.
+     * @param _teamWallet 25% allocation for development (spendable).
      * @param _presaleWallet 10% allocation for presale.
      * @param _airdropWallet 5% allocation for airdrop.
      * @param _stakingWallet 10% allocation for staking/rewards.
@@ -55,7 +55,7 @@ contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         __ERC20_init("Porkelon", "PORK");
         __ERC20Burnable_init();
-        __Ownable_init();
+        __Ownable_init(msg.sender);
         __Pausable_init();
         __UUPSUpgradeable_init();
         __AccessControl_init();
@@ -67,7 +67,7 @@ contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _grantRole(UPGRADER_ROLE, msg.sender);
 
         // Mint allocations
-        _mint(_teamWallet, MAX_SUPPLY * 25 / 100); // 25%
+        _mint(_teamWallet, MAX_SUPPLY * 25 / 100); // 25% (spendable)
         _mint(_presaleWallet, MAX_SUPPLY * 10 / 100); // 10%
         _mint(_airdropWallet, MAX_SUPPLY * 5 / 100); // 5%
         _mint(_stakingWallet, MAX_SUPPLY * 10 / 100); // 10%
