@@ -1,4 +1,29 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("dotenv").config();  // yarn add dotenv
+
+module.exports = {
+  solidity: {
+    version: "0.8.20",
+    settings: { optimizer: { enabled: true, runs: 200 } }
+  },
+  networks: {
+    mumbai: {
+      url: process.env.MUMBAI_RPC_URL || "https://polygon-mumbai.g.alchemy.com/v2/YOUR_KEY",
+      accounts: [process.env.PRIVATE_KEY],  // Your deployer wallet priv key (never commit!)
+      chainId: 80001
+    },
+    polygon: {
+      url: process.env.POLYGON_RPC_URL || "https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY",
+      accounts: [process.env.PRIVATE_KEY],
+      chainId: 137
+    }
+  },
+  etherscan: {
+    apiKey: process.env.POLYGONSCAN_API_KEY  // For verification
+  }
+};
+
+require("@nomicfoundation/hardhat-toolbox");
 require("@openzeppelin/hardhat-upgrades");
 require("dotenv").config();
 
