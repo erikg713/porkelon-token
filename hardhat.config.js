@@ -1,5 +1,7 @@
+// hardhat.config.js
 require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config();  // yarn add dotenv
+require("@openzeppelin/hardhat-upgrades");
+require("dotenv").config();
 
 module.exports = {
   solidity: {
@@ -7,55 +9,21 @@ module.exports = {
     settings: { optimizer: { enabled: true, runs: 200 } }
   },
   networks: {
-    mumbai: {
-      url: process.env.MUMBAI_RPC_URL || "https://polygon-mumbai.g.alchemy.com/v2/YOUR_KEY",
-      accounts: [process.env.PRIVATE_KEY],  // Your deployer wallet priv key (never commit!)
-      chainId: 80001
+    amoy: {  // Replaced Mumbai with Amoy (current testnet as of 2025; Mumbai deprecated in 2024)
+      url: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology/",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 80002
     },
     polygon: {
-      url: process.env.POLYGON_RPC_URL || "https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY",
-      accounts: [process.env.PRIVATE_KEY],
+      url: process.env.POLYGON_RPC_URL || "https://polygon-bor-rpc.publicnode.com/",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 137
     }
   },
   etherscan: {
-    apiKey: process.env.POLYGONSCAN_API_KEY  // For verification
+    apiKey: {
+      polygon: process.env.POLYGONSCAN_API_KEY,
+      polygonAmoy: process.env.POLYGONSCAN_API_KEY  // Same API key works for Amoy
+    }
   }
 };
-
-require("@nomicfoundation/hardhat-toolbox");
-require("@openzeppelin/hardhat-upgrades");
-require("dotenv").config();
-
-const { ethers, upgrades } = require("hardhat");
-
-async function main() {
-  const PorkelonPolygon = await ethers.getContractFactory("PorkelonPolygon");
-  const porkelon = await upgrades.deployProxy(PorkelonPolygon, ["0xYourDevWalletHere", "0xYourLiquidityWalletHere"], { initializer: 'initialize', kind: 'uups' });
-  console.log("Porkelon deployed to:", await porkelon.getAddress());
-}
-
-const { PRIVATE_KEY, POLYGON_RPC, MUMBAI_RPC, POLYGONSCAN_API_KEY } = process.env;
-
-module.exports = {
-  solidity: "0.8.20",
-  networks: {
-    polygon: {
-      url: POLYGON_RPC || "https://polygon-rpc.com",
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 137,
-    },
-    mumbai: {
-      url: MUMBAI_RPC || "https://rpc-mumbai.maticvigil.com",
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 80001,
-    },
-  },
-  etherscan: {
-    apiKey: {
-      polygon: POLYGONSCAN_API_KEY,
-      polygonMumbai: POLYGONSCAN_API_KEY,
-    },
-  },
-};
- main },
