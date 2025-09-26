@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-  const LP_TOKEN = "0x23cE6D1E06D8509A5668e9E1602de1c2b19ba3a2"; // Get from add_liquidity tx logs or QuickSwap factory
+  const LP_TOKEN = "YOUR_LP_TOKEN_ADDRESS"; // Get from add_liquidity tx logs or QuickSwap factory
   const UNICRYPT_LOCKER = "0xaDB2437e6F65682B2a7f4AFd03Cb86DeB3f6b143508A7B1D0";
   const LOCK_DURATION = 365 * 24 * 60 * 60; // 1 year in seconds
   const LP_AMOUNT = ethers.parseUnits("YOUR_LP_AMOUNT", 18); // Full LP balance; adjust
