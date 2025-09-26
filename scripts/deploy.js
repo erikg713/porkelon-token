@@ -2,58 +2,44 @@ const { ethers, upgrades } = require("hardhat");
 require("dotenv").config();
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  const { TEAM_WALLET, PRESALE_WALLET, AIRDROP_WALLET, STAKING_WALLET, REWARDS_WALLET, LIQUIDITY_WALLET } = process.env;
 
-  console.log("======================================");
-  console.log("🚀 Deploying Upgradeable PorkelonPolygon Token to Polygon...");
-  console.log("👤 Deployer Address:", deployer.address);
-  console.log("💰 Balance:", ethers.formatEther(await deployer.getBalance()));
-  console.log("======================================");
-
-  // Load wallet addresses from .env
-  const TEAM_WALLET = process.env.TEAM_WALLET;
-  const LIQUIDITY_WALLET = process.env.LIQUIDITY_WALLET;
-
-  if (!TEAM_WALLET || !LIQUIDITY_WALLET) {
-    throw new Error("⚠️ Missing TEAM_WALLET or LIQUIDITY_WALLET in .env");
-  }
-
-  // Load contract factory
-  const PorkelonPolygon = await ethers.getContractFactory("PorkelonPolygon");
-
-  // Deploy as upgradeable proxy (UUPS)
-  const porkelon = await upgrades.deployProxy(
-    PorkelonPolygon,
-    [TEAM_WALLET, LIQUIDITY_WALLET],
-    { initializer: "initialize", kind: "uups" }
-  );
+  // Deploy Porkelon proxy
+  const Porkelon = await ethers.getContractFactory("Porkelon");
+  const porkelon = await upgrades.deployProxy(Porkelon, [
+    TEAM_WALLET,
+    PRESALE_WALLET,
+    AIRDROP_WALLET,
+    STAKING_WALLET,
+    REWARDS_WALLET,
+    LIQUIDITY_WALLET
+  ], { kind: 'uups' });
   await porkelon.waitForDeployment();
+  console.log("Porkelon Proxy deployed to:", await porkelon.getAddress());
 
-  const proxyAddress = await porkelon.getAddress();
-  console.log("✅ PorkelonPolygon Proxy deployed to:", proxyAddress);
+  // Deploy Presale (example rates: 1M PORK per MATIC, 1M PORK per USDT; cap = 10B PORK)
+  const USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
+  const presaleCap = ethers.parseUnits("10000000000", 18); // 10B PORK
+  const maticRate = ethers.parseUnits("1000000", 0); // Adjust as needed
+  const usdtRate = ethers.parseUnits("1000000", 0); // Adjust as needed
+  const PorkelonPresale = await ethers.getContractFactory("PorkelonPresale");
+  const presale = await PorkelonPresale.deploy(
+    await porkelon.getAddress(),
+    USDT,
+    TEAM_WALLET, // Funds go to team
+    maticRate,
+    usdtRate,
+    presaleCap
+  );
+  await presale.waitForDeployment();
+  console.log("PorkelonPresale deployed to:", await presale.getAddress());
 
-  // Get implementation address
-  const implAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
-  console.log("🛠️ Implementation address:", implAddress);
-
-  // Optional: verify on PolygonScan
-  if (process.env.POLYGONSCAN_API_KEY) {
-    console.log("🔍 Verifying implementation contract...");
-    try {
-      await hre.run("verify:verify", {
-        address: implAddress,
-        constructorArguments: [],
-      });
-      console.log("✅ Verified implementation at:", implAddress);
-    } catch (e) {
-      console.warn("⚠️ Verification skipped:", e.message);
-    }
-  }
-
-  console.log("🎉 Deployment complete. Proxy is ready for upgrades.");
+  // Transfer presale allocation from presale_wallet to presale contract (assume you control presale_wallet; otherwise, manual tx)
+  // For automation, impersonate if on testnet or use multisig
+  console.log("Manually transfer presale tokens from PRESALE_WALLET to presale contract.");
 }
 
-main().catch((err) => {
-  console.error("❌ Deployment failed:", err);
+main().catch((error) => {
+  console.error(error);
   process.exitCode = 1;
 });
