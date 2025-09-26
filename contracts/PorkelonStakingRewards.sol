@@ -5,13 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/**
- * @title PorkelonStakingRewards
- * @dev Staking contract with rewards distribution (Synthetix-style).
- */
 contract PorkelonStakingRewards is Ownable, ReentrancyGuard {
-    IERC20 public stakingToken; // PORK
-    IERC20 public rewardsToken; // Also PORK
+    IERC20 public stakingToken;
+    IERC20 public rewardsToken;
 
     uint256 public totalStaked;
     mapping(address => uint256) public balancesStaked;
