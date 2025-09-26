@@ -7,8 +7,8 @@ async function main() {
 
   // 1. Deploy Token (upgradeable proxy)
   const PorkelonToken = await ethers.getContractFactory("PorkelonToken");
-  const liquidityWallet = "0xYourLiquidityWalletAddress";  // Replace
-  const marketingWallet = "0xYourMarketingWalletAddress";  // Replace
+  const liquidityWallet = "0x23cE6D1E06D8509A5668e9E1602de1c2b19ba3a2";  // Replace
+  const marketingWallet = "0xA0bFf660B20466F11E659dd948e2F18152E185bF";  // Replace
   const tokenProxy = await upgrades.deployProxy(PorkelonToken, [liquidityWallet, marketingWallet], { initializer: 'initialize' });
   await tokenProxy.waitForDeployment();
   const tokenAddress = await tokenProxy.getAddress();
@@ -28,7 +28,7 @@ async function main() {
   // 3. Deploy Presale
   async function deployPresale(tokenAddr) {
     const PorkelonPresale = await ethers.getContractFactory("PorkelonPresale");
-    const fundsWallet = "0xYourFundsWallet";  // e.g., team
+    const fundsWallet = "0x22874758705f24bfae1F524B590B24217B949088";  // e.g., team
     const maticRate = ethers.parseEther("1000000");  // 1M PORK per MATIC—tune
     const usdtRate = ethers.parseEther("1000");  // 1K PORK per USDT—tune
     const cap = ethers.parseEther("10000000000");  // 10B PORK cap
@@ -59,7 +59,7 @@ async function main() {
   // 6. Deploy Liquidity Locker (40% allocation)
   async function deployLiquidityLocker(tokenAddr) {
     const PorkelonLiquidityLocker = await ethers.getContractFactory("PorkelonLiquidityLocker");
-    const beneficiary = "0xYourLPProviderWallet";  // e.g., for Uniswap/QuickSwap LP
+    const beneficiary = "0x23cE6D1E06D8509A5668e9E1602de1c2b19ba3a2";  // e.g., for Uniswap/QuickSwap LP
     const locker = await PorkelonLiquidityLocker.deploy(token, beneficiary, ethers.parseEther("40000000000"));  // 40B
     await locker.waitForDeployment();
     console.log("Locker deployed to:", await locker.getAddress());
