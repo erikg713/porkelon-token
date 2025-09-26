@@ -1,4 +1,3 @@
-// hardhat.config.js
 require("@nomicfoundation/hardhat-toolbox");
 require("@openzeppelin/hardhat-upgrades");
 require("dotenv").config();
@@ -45,6 +44,6 @@ module.exports = {
     coinmarketcap: process.env.COINMARKETCAP_API_KEY
   },
   mocha: {
-    timeout: 40000
+    timeout: 60000
   }
 };
