@@ -4,10 +4,6 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/**
- * @title PorkelonAirdrop
- * @dev Manages airdrop distribution of PORK tokens.
- */
 contract PorkelonAirdrop is Ownable {
     IERC20 public token;
     uint256 public airdropPool;
