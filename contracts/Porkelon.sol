@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
@@ -32,7 +32,7 @@ contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     ) public initializer {
         __ERC20_init("Porkelon", "PORK");
         __ERC20Burnable_init();
-        __Ownable_init();
+        __Ownable_init(msg.sender); // Pass initial owner
         __Pausable_init();
         __UUPSUpgradeable_init();
         __AccessControl_init();
@@ -43,7 +43,7 @@ contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _grantRole(PAUSER_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
 
-        // Mint and allocate (no further minting possible as no mint function exposed)
+        // Mint and allocate
         uint256 teamAmount = MAX_SUPPLY * 20 / 100;
         uint256 presaleAmount = MAX_SUPPLY * 10 / 100;
         uint256 airdropAmount = MAX_SUPPLY * 10 / 100;
@@ -59,16 +59,16 @@ contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _mint(_liquidityWallet, liquidityAmount);
     }
 
-    function _update(address from, address to, uint256 amount) internal override {
+    function _update(address from, address to, uint256 value) internal override(ERC20Upgradeable, PausableUpgradeable) {
         require(!paused(), "Porkelon: token transfer paused");
         if (from == address(0) || to == address(0)) {
             // No fee on mint or burn
-            super._update(from, to, amount);
+            super._update(from, to, value);
         } else {
             // Apply 1% fee to team wallet
-            uint256 fee = amount * FEE_PERCENT / 100;
-            uint256 amountAfterFee = amount - fee;
-            super._update(from, to, amountAfterFee);
+            uint256 fee = value * FEE_PERCENT / 100;
+            uint256 valueAfterFee = value - fee;
+            super._update(from, to, valueAfterFee);
             super._update(from, teamWallet, fee);
         }
     }
