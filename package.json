@@ -1,15 +1,22 @@
 {
-  "name": "porkelon-token",
+  "name": "porkelon",
   "version": "1.0.0",
+  "description": "Porkelon token ecosystem on Polygon",
   "scripts": {
-    "compile": "npx hardhat compile"
+    "compile": "hardhat compile",
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
+    "deploy:polygon": "hardhat run scripts/deploy.js --network polygon",
+    "decrypt": "hardhat run scripts/decrypt_keystore.js --network amoy",
+    "test": "hardhat test",
+    "verify": "hardhat verify"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/hardhat-upgrades": "^3.4.0",
+    "@openzeppelin/contracts": "^5.0.2",
+    "@openzeppelin/contracts-upgradeable": "^5.0.2",
     "dotenv": "^16.4.5",
+    "ethers": "^6.13.2",
     "hardhat": "^2.22.10"
-  },
-  "dependencies": {
-    "@openzeppelin/contracts": "^5.0.2"
   }
 }
