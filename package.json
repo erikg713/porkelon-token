@@ -1,12 +1,16 @@
 {
-  "name": "porkelon",
+  "name": "porkelon-project",
   "version": "1.0.0",
   "description": "Porkelon token ecosystem on Polygon",
   "scripts": {
     "compile": "hardhat compile",
     "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
     "deploy:polygon": "hardhat run scripts/deploy.js --network polygon",
+    "upgrade:amoy": "hardhat run scripts/upgrade.js --network amoy",
+    "upgrade:polygon": "hardhat run scripts/upgrade.js --network polygon",
     "decrypt": "hardhat run scripts/decrypt_keystore.js --network amoy",
+    "add-liquidity": "./scripts/add_liquidity.sh",
+    "lock-liquidity": "./scripts/lock_liquidity.sh",
     "test": "hardhat test",
     "verify": "hardhat verify"
   },
@@ -17,6 +21,8 @@
     "@openzeppelin/contracts-upgradeable": "^5.0.2",
     "dotenv": "^16.4.5",
     "ethers": "^6.13.2",
-    "hardhat": "^2.22.10"
+    "hardhat": "^2.22.10",
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0"
   }
 }
