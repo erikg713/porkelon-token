@@ -2,6 +2,7 @@
 const { ethers, upgrades } = require("hardhat");
 const fs = require("fs").promises;
 const path = require("path");
+require("dotenv").config();
 
 async function main() {
   console.log("Starting Porkelon ecosystem deployment...");
@@ -10,14 +11,15 @@ async function main() {
   console.log("POL Balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)));
 
   const config = {
-    teamWallet: process.env.TEAM_WALLET || "0xYourTeamWalletHere",
-    presaleWallet: process.env.PRESALE_WALLET || "0xYourPresaleWalletHere",
-    airdropWallet: process.env.AIRDROP_WALLET || "0xYourAirdropWalletHere",
-    stakingWallet: process.env.STAKING_WALLET || "0xYourStakingWalletHere",
-    marketingWallet: process.env.MARKETING_WALLET || "0xYourMarketingWalletHere",
-    liquidityWallet: process.env.LIQUIDITY_WALLET || "0xYourLiquidityWalletHere",
+    teamWallet: process.env.TEAM_WALLET,
+    presaleWallet: process.env.PRESALE_WALLET,
+    airdropWallet: process.env.AIRDROP_WALLET,
+    stakingWallet: process.env.STAKING_WALLET,
+    rewardsWallet: process.env.REWARDS_WALLET,
+    marketingWallet: process.env.MARKETING_WALLET,
+    liquidityWallet: process.env.LIQUIDITY_WALLET,
     fundsWallet: process.env.FUNDS_WALLET || deployer.address,
-    usdtAddress: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+    usdtAddress: process.env.USDT_ADDRESS,
     tokenPriceMatic: ethers.parseEther("0.000001"), // 1M PORK/MATIC
     tokenPriceUsdt: ethers.parseEther("0.001"), // 1K PORK/USDT
     minPurchase: ethers.parseEther("0.1"),
@@ -27,7 +29,6 @@ async function main() {
     stakingPool: ethers.parseEther("10000000000"), // 10B PORK
     liquidityLock: ethers.parseEther("40000000000"), // 40B PORK
     marketingVault: ethers.parseEther("10000000000"), // 10B PORK
-    lockDuration: 365 * 24 * 60 * 60, // 1 year
     vestingDuration: 2 * 365 * 24 * 60 * 60 // 2 years
   };
 
@@ -61,16 +62,20 @@ async function main() {
   const startTime = Math.floor(Date.now() / 1000) + 3600;
   const endTime = startTime + 7 * 24 * 60 * 60;
   const PorkelonPresale = await ethers.getContractFactory("PorkelonPresale");
-  const presale = await PorkelonPresale.deploy(
-    tokenAddress,
-    config.usdtAddress,
-    config.tokenPriceMatic,
-    config.tokenPriceUsdt,
-    config.minPurchase,
-    config.maxPurchase,
-    startTime,
-    endTime,
-    config.presaleCap
+  const presale = await upgrades.deployProxy(
+    PorkelonPresale,
+    [
+      tokenAddress,
+      config.usdtAddress,
+      config.tokenPriceMatic,
+      config.tokenPriceUsdt,
+      config.minPurchase,
+      config.maxPurchase,
+      startTime,
+      endTime,
+      config.presaleCap
+    ],
+    { initializer: "initialize" }
   );
   await presale.waitForDeployment();
   const presaleAddress = await presale.getAddress();
@@ -79,7 +84,11 @@ async function main() {
   // Deploy PorkelonAirdrop
   console.log("Deploying PorkelonAirdrop...");
   const PorkelonAirdrop = await ethers.getContractFactory("PorkelonAirdrop");
-  const airdrop = await PorkelonAirdrop.deploy(tokenAddress, config.airdropPool);
+  const airdrop = await upgrades.deployProxy(
+    PorkelonAirdrop,
+    [tokenAddress, config.airdropPool],
+    { initializer: "initialize" }
+  );
   await airdrop.waitForDeployment();
   const airdropAddress = await airdrop.getAddress();
   console.log("PorkelonAirdrop deployed to:", airdropAddress);
@@ -87,7 +96,11 @@ async function main() {
   // Deploy PorkelonStakingRewards
   console.log("Deploying PorkelonStakingRewards...");
   const PorkelonStakingRewards = await ethers.getContractFactory("PorkelonStakingRewards");
-  const staking = await PorkelonStakingRewards.deploy(tokenAddress, tokenAddress, config.stakingPool);
+  const staking = await upgrades.deployProxy(
+    PorkelonStakingRewards,
+    [tokenAddress, config.rewardsWallet, config.stakingPool],
+    { initializer: "initialize" }
+  );
   await staking.waitForDeployment();
   const stakingAddress = await staking.getAddress();
   console.log("PorkelonStakingRewards deployed to:", stakingAddress);
@@ -95,7 +108,11 @@ async function main() {
   // Deploy PorkelonLiquidityLocker
   console.log("Deploying PorkelonLiquidityLocker...");
   const PorkelonLiquidityLocker = await ethers.getContractFactory("PorkelonLiquidityLocker");
-  const locker = await PorkelonLiquidityLocker.deploy(tokenAddress, config.liquidityWallet, config.liquidityLock);
+  const locker = await upgrades.deployProxy(
+    PorkelonLiquidityLocker,
+    [tokenAddress, config.liquidityWallet, config.liquidityLock],
+    { initializer: "initialize" }
+  );
   await locker.waitForDeployment();
   const liquidityLockerAddress = await locker.getAddress();
   console.log("PorkelonLiquidityLocker deployed to:", liquidityLockerAddress);
@@ -103,7 +120,11 @@ async function main() {
   // Deploy PorkelonMarketingVault
   console.log("Deploying PorkelonMarketingVault...");
   const PorkelonMarketingVault = await ethers.getContractFactory("PorkelonMarketingVault");
-  const vault = await PorkelonMarketingVault.deploy(tokenAddress, config.marketingWallet, config.vestingDuration);
+  const vault = await upgrades.deployProxy(
+    PorkelonMarketingVault,
+    [tokenAddress, config.marketingWallet, config.vestingDuration],
+    { initializer: "initialize" }
+  );
   await vault.waitForDeployment();
   const vaultAddress = await vault.getAddress();
   console.log("PorkelonMarketingVault deployed to:", vaultAddress);
@@ -124,6 +145,21 @@ async function main() {
     JSON.stringify(artifacts, null, 2)
   );
   console.log("Deployment artifacts saved to deployments.json");
+
+  // Verify balances
+  console.log("Verifying token balances...");
+  const balances = {
+    team: await porkelon.balanceOf(config.teamWallet),
+    presale: await porkelon.balanceOf(config.presaleWallet),
+    airdrop: await porkelon.balanceOf(config.airdropWallet),
+    staking: await porkelon.balanceOf(config.stakingWallet),
+    marketing: await porkelon.balanceOf(config.marketingWallet),
+    liquidity: await porkelon.balanceOf(config.liquidityWallet)
+  };
+  console.log("Balances:");
+  for (const [key, balance] of Object.entries(balances)) {
+    console.log(`${key}: ${ethers.formatEther(balance)} PORK`);
+  }
 }
 
 main()
