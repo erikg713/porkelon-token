@@ -13,6 +13,7 @@ async function main() {
   const keystorePath = path.resolve(__dirname, "../keystore/your-keystore-file.json"); // Replace with your keystore file path
   const password = process.env.KEYSTORE_PASSWORD; // Store in .env
   const porkelonAddress = "0x3acc6396458daAf9F0b0545a4752591880eF6e28"; // Replace with your deployed Porkelon address
+  const presaleAddress = "0xYourPresaleAddressHere"; // Replace with deployed presale address
 
   // Validate inputs
   if (!password) {
@@ -52,14 +53,18 @@ async function main() {
     const tokenBalance = await porkelon.balanceOf(wallet.address);
     console.log(`${tokenSymbol} Balance:`, ethers.formatEther(tokenBalance));
 
-    // Optional: Example transfer (uncomment to use)
+    // Optional: Interact with Presale contract (uncomment to use)
     /*
-    const recipient = "0xYourRecipientAddressHere"; // Replace
-    const amount = ethers.parseEther("100"); // 100 PORK
-    const tx = await porkelon.transfer(recipient, amount);
-    console.log("Transfer transaction sent:", tx.hash);
+    const presaleAbi = [
+      "function buyWithMatic() payable",
+      "function sold() view returns (uint256)"
+    ];
+    const presale = new ethers.Contract(presaleAddress, presaleAbi, connectedWallet);
+    const maticAmount = ethers.parseEther("1"); // 1 MATIC
+    const tx = await presale.buyWithMatic({ value: maticAmount });
+    console.log("Presale purchase transaction sent:", tx.hash);
     await tx.wait();
-    console.log("Transfer confirmed!");
+    console.log("Purchase confirmed! Tokens sold:", ethers.formatEther(await presale.sold()));
     */
 
   } catch (error) {
