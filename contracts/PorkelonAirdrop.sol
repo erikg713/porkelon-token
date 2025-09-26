@@ -3,47 +3,45 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /**
  * @title PorkelonAirdrop
- * @dev Manages airdrop distribution of PORK tokens on Polygon.
- *      Only the owner can trigger batch airdrops from the allocated pool.
+ * @dev Manages airdrop distribution of PORK tokens.
  */
 contract PorkelonAirdrop is Ownable {
-    IERC20 public token; // PORK token (Porkelon)
-    uint256 public airdropPool; // Available tokens for airdrop
+    using SafeMath for uint256;
+
+    IERC20 public immutable token;
+    uint256 public airdropPool;
 
     event AirdropSent(address indexed recipient, uint256 amount);
+    event AirdropPoolUpdated(uint256 oldPool, uint256 newPool);
 
-    /**
-     * @dev Constructor sets the token and initial airdrop pool.
-     * @param _token Address of the PORK token contract.
-     * @param _airdropPool Amount of tokens allocated for airdrops.
-     */
     constructor(IERC20 _token, uint256 _airdropPool) Ownable(msg.sender) {
-        require(address(_token) != address(0), "Invalid token address");
+        require(address(_token) != address(0), "PorkelonAirdrop: Invalid token address");
+        require(_airdropPool > 0, "PorkelonAirdrop: Invalid pool size");
         token = _token;
         airdropPool = _airdropPool;
+        emit AirdropPoolUpdated(0, _airdropPool);
     }
 
-    /**
-     * @dev Distributes tokens to multiple recipients in a batch.
-     *      Only callable by the owner.
-     * @param recipients Array of recipient addresses.
-     * @param amounts Array of token amounts to send (in wei).
-     */
     function airdropBatch(address[] calldata recipients, uint256[] calldata amounts) external onlyOwner {
-        require(recipients.length == amounts.length, "Array length mismatch");
+        require(recipients.length == amounts.length, "PorkelonAirdrop: Array length mismatch");
+        require(recipients.length > 0, "PorkelonAirdrop: Empty arrays");
+
         uint256 total = 0;
         for (uint256 i = 0; i < amounts.length; i++) {
-            total += amounts[i];
+            total = total.add(amounts[i]);
         }
-        require(total <= airdropPool, "Insufficient airdrop funds");
+        require(total <= airdropPool, "PorkelonAirdrop: Insufficient funds");
 
-        airdropPool -= total;
+        airdropPool = airdropPool.sub(total);
+        emit AirdropPoolUpdated(total, airdropPool);
+
         for (uint256 i = 0; i < recipients.length; i++) {
-            if (amounts[i] > 0) {
-                require(token.transfer(recipients[i], amounts[i]), "Transfer failed");
+            if (amounts[i] > 0 && recipients[i] != address(0)) {
+                require(token.transfer(recipients[i], amounts[i]), "PorkelonAirdrop: Transfer failed");
                 emit AirdropSent(recipients[i], amounts[i]);
             }
         }
