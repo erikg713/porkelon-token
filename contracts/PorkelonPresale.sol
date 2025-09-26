@@ -1,50 +1,72 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-/**
- * @title PorkelonPresale
- * @dev Handles presale with MATIC payments for PORK tokens.
- */
-contract PorkelonPresale is Ownable, ReentrancyGuard {
-    IERC20 public token;
-    uint256 public presalePriceWeiPerToken;
-    uint256 public presalePool;
-    uint256 public constant DECIMAL_FACTOR = 10**18;
+contract PorkelonPresale is Ownable {
+    IERC20 public porkToken;
+    IERC20 public usdt;  // USDT on Polygon
+    address public fundsWallet;  // Where MATIC/USDT go (e.g., team wallet)
 
-    event PresaleBuy(address indexed buyer, uint256 tokenAmount, uint256 paidWei);
+    uint256 public maticRate;  // PORK per MATIC (e.g., 1000000 for 1M PORK per MATIC)
+    uint256 public usdtRate;   // PORK per USDT
+    uint256 public cap;        // Max PORK for presale (e.g., 10B * 10**18)
+    uint256 public sold;
 
-    constructor(IERC20 _token, uint256 _presalePool) Ownable(msg.sender) {
-        token = _token;
-        presalePool = _presalePool;
+    bool public active;
+
+    event Bought(address buyer, uint256 amount, bool withUsdt);
+
+    constructor(
+        address _porkToken,
+        address _usdt,
+        address _fundsWallet,
+        uint256 _maticRate,
+        uint256 _usdtRate,
+        uint256 _cap
+    ) Ownable(msg.sender) {
+        porkToken = IERC20(_porkToken);
+        usdt = IERC20(_usdt);
+        fundsWallet = _fundsWallet;
+        maticRate = _maticRate;
+        usdtRate = _usdtRate;
+        cap = _cap;
     }
 
-    function setPresalePrice(uint256 weiPerToken) external onlyOwner {
-        require(weiPerToken > 0, "Invalid price");
-        presalePriceWeiPerToken = weiPerToken;
+    function buyWithMatic() external payable {
+        require(active, "Presale not active");
+        require(msg.value > 0, "No MATIC sent");
+        uint256 tokens = msg.value * maticRate;
+        require(sold + tokens <= cap, "Presale cap exceeded");
+        sold += tokens;
+        porkToken.transfer(msg.sender, tokens);
+        payable(fundsWallet).transfer(msg.value);
+        emit Bought(msg.sender, tokens, false);
     }
 
-    function buyPresale(uint256 tokenAmount) external payable nonReentrant {
-        require(tokenAmount <= presalePool, "Not enough presale tokens");
-        uint256 weiRequired = (presalePriceWeiPerToken * tokenAmount) / DECIMAL_FACTOR;
-        require(msg.value >= weiRequired, "Insufficient payment");
-
-        presalePool -= tokenAmount;
-        require(token.transfer(msg.sender, tokenAmount), "Token transfer failed");
-
-        if (msg.value > weiRequired) {
-            payable(msg.sender).transfer(msg.value - weiRequired);
-        }
-
-        emit PresaleBuy(msg.sender, tokenAmount, weiRequired);
+    function buyWithUsdt(uint256 usdtAmount) external {
+        require(active, "Presale not active");
+        require(usdtAmount > 0, "No USDT sent");
+        uint256 tokens = usdtAmount * usdtRate;
+        require(sold + tokens <= cap, "Presale cap exceeded");
+        sold += tokens;
+        usdt.transferFrom(msg.sender, fundsWallet, usdtAmount);
+        porkToken.transfer(msg.sender, tokens);
+        emit Bought(msg.sender, tokens, true);
     }
 
-    function withdrawProceeds(address payable to) external onlyOwner nonReentrant {
-        require(to != address(0), "Zero address");
-        uint256 bal = address(this).balance;
-        to.transfer(bal);
+    function setRates(uint256 _maticRate, uint256 _usdtRate) external onlyOwner {
+        maticRate = _maticRate;
+        usdtRate = _usdtRate;
+    }
+
+    function setActive(bool _active) external onlyOwner {
+        active = _active;
+    }
+
+    function withdrawRemainingTokens() external onlyOwner {
+        uint256 remaining = porkToken.balanceOf(address(this));
+        porkToken.transfer(owner(), remaining);
     }
 }
