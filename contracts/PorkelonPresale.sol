@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract PorkelonPresale is Ownable {
     IERC20 public porkToken;
-    IERC20 public usdt;  // USDT on Polygon
-    address public fundsWallet;  // Where MATIC/USDT go (e.g., team wallet)
+    IERC20 public usdt;
+    address public fundsWallet;
 
-    uint256 public maticRate;  // PORK per MATIC (e.g., 1000000 for 1M PORK per MATIC)
-    uint256 public usdtRate;   // PORK per USDT
-    uint256 public cap;        // Max PORK for presale (e.g., 10B * 10**18)
+    uint256 public maticRate;
+    uint256 public usdtRate;
+    uint256 public cap;
     uint256 public sold;
 
     bool public active;
 
-    event Bought(address buyer, uint256 amount, bool withUsdt);
+    event Bought(address indexed buyer, uint256 amount, bool withUsdt);
 
     constructor(
         address _porkToken,
