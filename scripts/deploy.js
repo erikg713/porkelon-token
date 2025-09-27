@@ -52,12 +52,6 @@ async function main() {
   console.log("PorkelonAirdrop deployed to:", airdropAddress);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
 const { ethers, upgrades } = require("hardhat");
 const USDT_ADDRESS = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";  // Polygon USDT
 
