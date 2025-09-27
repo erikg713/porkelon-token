@@ -1,6 +1,29 @@
 const { ethers, upgrades } = require("hardhat");
 
 async function main() {
+  const proxyAddress = "YOUR_DEPLOYED_PROXY_ADDRESS"; // replace after deploy
+
+  console.log("Upgrading Porkelon at proxy:", proxyAddress);
+
+  const PorkelonV2 = await ethers.getContractFactory("PorkelonV2");
+  const upgraded = await upgrades.upgradeProxy(proxyAddress, PorkelonV2);
+
+  console.log("Porkelon has been upgraded!");
+  console.log("New contract at proxy:", await upgraded.getAddress());
+
+  // Test: call version()
+  console.log("Contract version:", await upgraded.version());
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
+
+const { ethers, upgrades } = require("hardhat");
+
+async function main() {
   const proxy = process.env.PROXY_ADDRESS;
   if (!proxy) throw new Error("Set PROXY_ADDRESS in .env");
 
