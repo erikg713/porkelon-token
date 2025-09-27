@@ -107,8 +107,6 @@ contract Presale is Ownable, ReentrancyGuard {
         require(maticAmount >= minPurchaseMatic, "below min matic");
         require(maticAmount <= maxPurchaseMatic, "above max matic");
 
-        // tokenAmount = maticAmount * maticRate
-        // be careful about units: maticAmount is in wei. maticRate must be token base units per 1 ether (1 MATIC).
         uint256 tokenAmount = (maticAmount * maticRate) / 1 ether;
         require(tokenAmount > 0, "token amount 0");
         require(tokensSold + tokenAmount <= cap, "cap exceeded");
@@ -118,11 +116,8 @@ contract Presale is Ownable, ReentrancyGuard {
         tokensSold += tokenAmount;
         purchased[msg.sender] += tokenAmount;
 
-        // Transfer tokens to buyer
-        // Using SafeERC20 to interact safely with tokens like USDT
         token.safeTransfer(msg.sender, tokenAmount);
 
-        // Forward the received MATIC to fundsWallet using call
         (bool sent, ) = fundsWallet.call{value: maticAmount}("");
         require(sent, "matic transfer failed");
 
@@ -130,14 +125,9 @@ contract Presale is Ownable, ReentrancyGuard {
     }
 
     // Buy tokens with USDT (must approve first)
-    // usdtAmount should be provided in USDT base units (e.g., 6 decimals)
     function buyWithUSDT(uint256 usdtAmount) external nonReentrant onlyWhileActive {
         require(usdtAmount > 0, "usdt zero");
 
-        // tokenAmount = (usdtAmount / 1eUSDTdecimals) * usdtRate
-        // we require caller passes usdtAmount in base units, and usdtRate is token base units per 1 USDT (i.e., per 1*10^usdtDecimals)
-        // To avoid decimals, compute: tokenAmount = (usdtAmount * usdtRate) / (10 ** usdtDecimals)
-        // For simplicity we assume usdt decimals = 6 (common) but do NOT hardcode: read from token if needed off-chain.
         uint256 tokenAmount = (usdtAmount * usdtRate) / (10**6);
         require(tokenAmount > 0, "token amount 0");
         require(tokensSold + tokenAmount <= cap, "cap exceeded");
@@ -147,10 +137,8 @@ contract Presale is Ownable, ReentrancyGuard {
         tokensSold += tokenAmount;
         purchased[msg.sender] += tokenAmount;
 
-        // Pull USDT from buyer and forward to fundsWallet
         usdt.safeTransferFrom(msg.sender, fundsWallet, usdtAmount);
 
-        // Send tokens to buyer
         token.safeTransfer(msg.sender, tokenAmount);
 
         emit BoughtWithUSDT(msg.sender, usdtAmount, tokenAmount);
@@ -185,7 +173,6 @@ contract Presale is Ownable, ReentrancyGuard {
         return (usdtBase * usdtRate) / (10**6);
     }
 
-    // Allow contract to receive ETH/MATIC if needed
     receive() external payable {}
     fallback() external payable {}
 }
