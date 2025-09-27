@@ -60,18 +60,13 @@ contract PorkelonPolygon is Initializable, ERC20Upgradeable, AccessControlUpgrad
     // Override transfer to include 1% fee
     function _update(address from, address to, uint256 amount) internal override whenNotPaused {
         if (from == address(0) || to == address(0)) {
-            // Minting or burning: no fee
             super._update(from, to, amount);
         } else {
-            // Calculate 1% fee
             uint256 fee = (amount * TRANSFER_FEE) / 10_000;
             uint256 amountAfterFee = amount - fee;
-
-            // Transfer fee to dev wallet
             if (fee > 0) {
                 super._update(from, devWallet, fee);
             }
-            // Transfer remaining amount to recipient
             super._update(from, to, amountAfterFee);
         }
     }
@@ -106,17 +101,17 @@ contract PorkelonPolygon is Initializable, ERC20Upgradeable, AccessControlUpgrad
         }
     }
 
-    // Pause contract (only pauser role)
+    // Pause contract
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
-    // Unpause contract (only pauser role)
+    // Unpause contract
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
-    // Burn tokens (anyone can burn their own tokens)
+    // Burn tokens
     function burn(uint256 amount) external {
         _burn(msg.sender, amount);
     }
