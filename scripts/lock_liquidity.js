@@ -1,29 +1,45 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-  const LP_TOKEN = "YOUR_LP_TOKEN_ADDRESS"; // Get from add_liquidity tx logs or QuickSwap factory
+  const [deployer] = await ethers.getSigners();
+  console.log("Using account:", deployer.address);
+
+  // Replace these!
+  const LP_TOKEN = "0x23cE6D1E06D8509A5668e9E1602de1c2b19ba3a2"; 
   const UNICRYPT_LOCKER = "0xaDB2437e6F65682B2a7f4AFd03Cb86DeB3f6b143508A7B1D0";
-  const LOCK_DURATION = 365 * 24 * 60 * 60; // 1 year in seconds
-  const LP_AMOUNT = ethers.parseUnits("YOUR_LP_AMOUNT", 18); // Full LP balance; adjust
+  const LOCK_DURATION = 365 * 24 * 60 * 60; // 1 year
+  const LP_AMOUNT = ethers.parseUnits("100", 18); // e.g. 100 LP tokens
 
-  const lp = await ethers.getContractAt("IERC20", LP_TOKEN);
-  const locker = await ethers.getContractAt("IUnicryptLocker", UNICRYPT_LOCKER); // Need interface below
+  // ABIs
+  const ERC20_ABI = [
+    "function approve(address spender, uint256 amount) external returns (bool)"
+  ];
+  const UNICRYPT_ABI = [
+    "function lockLPToken(address _lpToken, uint256 _amount, uint256 _unlock_date, address _referral, bool _fee_in_eth, address _withdrawer) external"
+  ];
 
-  // Approve LP to locker
-  await lp.approve(UNICRYPT_LOCKER, LP_AMOUNT);
-  console.log("Approved LP for locking");
+  // Contract instances
+  const lp = new ethers.Contract(LP_TOKEN, ERC20_ABI, deployer);
+  const locker = new ethers.Contract(UNICRYPT_LOCKER, UNICRYPT_ABI, deployer);
 
-  // Lock (assumes Unicrypt's lock function; confirm ABI on PolygonScan)
-  // Typical: lockLPToken(lpToken, amount, unlock_date, referrer, fee, withDrawer)
+  // 1. Approve LP to Unicrypt
+  const approveTx = await lp.approve(UNICRYPT_LOCKER, LP_AMOUNT);
+  await approveTx.wait();
+  console.log(`✅ Approved ${LP_AMOUNT} LP tokens to locker`);
+
+  // 2. Lock LP
   const unlockDate = Math.floor(Date.now() / 1000) + LOCK_DURATION;
-  await locker.lockLPToken(LP_TOKEN, LP_AMOUNT, unlockDate, ethers.ZeroAddress, true, await ethers.provider.getSigner().getAddress());
-  console.log("Liquidity locked for 1 year");
+  const lockTx = await locker.lockLPToken(
+    LP_TOKEN,
+    LP_AMOUNT,
+    unlockDate,
+    ethers.ZeroAddress,   // no referral
+    true,                 // fee in ETH (MATIC on Polygon)
+    deployer.address      // withdrawer
+  );
+  await lockTx.wait();
+  console.log(`✅ Locked ${LP_AMOUNT} LP tokens until ${new Date(unlockDate * 1000).toUTCString()}`);
 }
-
-// Unicrypt Locker Interface (basic; expand as needed from contract ABI)
-const IUnicryptLocker = new ethers.Interface([
-  "function lockLPToken(address _lpToken, uint256 _amount, uint256 _unlock_date, address payable _referral, bool _fee_in_eth, address payable _withdrawer)"
-]);
 
 main().catch((error) => {
   console.error(error);
