@@ -1,0 +1,13 @@
+[
+  "function owner() view returns (address)",
+  "function endTime() view returns (uint256)",
+  "function tokenPrice() view returns (uint256)",
+  "function minPurchase() view returns (uint256)",
+  "function maxPurchase() view returns (uint256)",
+  "function startTime() view returns (uint256)",
+  "function totalTokens() view returns (uint256)",
+  "function token() view returns (address)",
+  "function withdraw() external",
+  "function withdrawTokens(address token, address to, uint256 amount) external",
+  "function balanceOf(address account) view returns (uint256)"
+]
