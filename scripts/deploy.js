@@ -8,9 +8,9 @@ async function main() {
   console.log("Deploying contracts with account:", deployer.address);
 
   // Wallets (replace with your actual addresses)
-  const teamWallet = "0xYourTeamWalletHere";
-  const marketingWallet = "0xYourMarketingWalletHere";
-  const liquidityWallet = "0xYourLiquidityWalletHere";
+  const teamWallet = "0xA0bFf660B20466F11E659dd948e2F18152E185bF";
+  const marketingWallet = "0x56e3CEF5C239fB8DF1A2D372ADCC0feDb4BA6E63";
+  const liquidityWallet = "0x23cE6D1E06D8509A5668e9E1602de1c2b19ba3a2";
 
   // 1. Deploy Porkelon (upgradeable proxy)
   const Porkelon = await ethers.getContractFactory("Porkelon");
