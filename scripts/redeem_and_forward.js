@@ -30,10 +30,16 @@ async function main() {
     throw new Error("Invalid or unset PORKELON_PROXY_ADDRESS. Set in .env or run show-address.js.");
   }
 
-  // Load presale contract
+  // Load presale contract with full ABI
   const presaleAbi = [
     "function owner() view returns (address)",
     "function endTime() view returns (uint256)",
+    "function tokenPrice() view returns (uint256)",
+    "function minPurchase() view returns (uint256)",
+    "function maxPurchase() view returns (uint256)",
+    "function startTime() view returns (uint256)",
+    "function totalTokens() view returns (uint256)",
+    "function token() view returns (address)",
     "function withdraw() external",
     "function withdrawTokens(address token, address to, uint256 amount) external",
     "function balanceOf(address account) view returns (uint256)"
@@ -52,11 +58,32 @@ async function main() {
     throw new Error(`Deployer ${deployer.address} is not the owner of the presale contract (${owner})`);
   }
 
-  // Check if presale has ended
+  // Verify presale parameters
+  const tokenAddress = await presale.token();
+  const tokenPrice = await presale.tokenPrice();
+  const minPurchase = await presale.minPurchase();
+  const maxPurchase = await presale.maxPurchase();
+  const startTime = await presale.startTime();
   const endTime = await presale.endTime();
+  const totalTokens = await presale.totalTokens();
+  console.log("\nPresale contract parameters:");
+  console.log(`Token Address: ${tokenAddress}`);
+  console.log(`Token Price: ${ethers.formatUnits(tokenPrice, "wei")} wei/token`);
+  console.log(`Min Purchase: ${ethers.formatEther(minPurchase)} POL`);
+  console.log(`Max Purchase: ${ethers.formatEther(maxPurchase)} POL`);
+  console.log(`Start Time: ${new Date(Number(startTime) * 1000).toISOString()}`);
+  console.log(`End Time: ${new Date(Number(endTime) * 1000).toISOString()}`);
+  console.log(`Total Tokens: ${ethers.formatEther(totalTokens)} PORK`);
+
+  // Validate token address matches Porkelon proxy
+  if (tokenAddress.toLowerCase() !== PORKELON_PROXY_ADDRESS.toLowerCase()) {
+    console.warn(`Warning: Presale token address (${tokenAddress}) does not match PORKELON_PROXY_ADDRESS (${PORKELON_PROXY_ADDRESS})`);
+  }
+
+  // Check if presale has ended
   const currentTime = Math.floor(Date.now() / 1000);
   if (currentTime < endTime) {
-    console.warn(`Warning: Presale has not ended yet (ends at ${new Date(endTime * 1000).toISOString()}). Proceeding with redemption...`);
+    console.warn(`Warning: Presale has not ended yet (ends at ${new Date(Number(endTime) * 1000).toISOString()}). Proceeding with redemption...`);
   }
 
   // Get Porkelon contract for token balance checks
@@ -78,9 +105,10 @@ async function main() {
   console.log(`Gas price: ${ethers.formatUnits(maxFeePerGas, "gwei")} gwei`);
   console.log(`Priority fee: ${ethers.formatUnits(maxPriorityFeePerGas, "gwei")} gwei`);
 
-  // Estimate gas for withdrawing POL (native currency)
+  // Estimate gas for withdrawing POL
   console.log("Estimating gas for withdrawing POL...");
   let gasLimit;
+  let polWithdrawn = false;
   try {
     gasLimit = await presale.withdraw.estimateGas();
     console.log(`Estimated gas limit (POL withdrawal): ${gasLimit.toString()} gas units`);
@@ -100,25 +128,17 @@ async function main() {
         `${ethers.formatEther(estimatedCost)} POL required for POL withdrawal`
       );
     }
-  } catch (e) {
-    console.warn(`Warning: POL withdrawal estimation failed: ${e.message}. Skipping POL withdrawal.`);
-    gasLimit = null;
-  }
 
-  // Withdraw POL if possible
-  let polWithdrawn = false;
-  if (gasLimit) {
+    // Withdraw POL
     console.log(`Withdrawing POL to ${FORWARD_ADDRESS}...`);
-    try {
-      const tx = await presale.withdraw({ gasLimit, maxPriorityFeePerGas, maxFeePerGas });
-      const receipt = await tx.wait();
-      console.log(`POL withdrawn successfully!`);
-      console.log(`Actual gas used (POL withdrawal): ${receipt.gasUsed.toString()} gas units`);
-      console.log(`Actual cost (POL withdrawal): ${ethers.formatEther(receipt.gasUsed * maxFeePerGas)} POL`);
-      polWithdrawn = true;
-    } catch (e) {
-      console.error(`Error withdrawing POL: ${e.message}`);
-    }
+    const tx = await presale.withdraw({ gasLimit, maxPriorityFeePerGas, maxFeePerGas });
+    const receipt = await tx.wait();
+    console.log(`POL withdrawn successfully!`);
+    console.log(`Actual gas used (POL withdrawal): ${receipt.gasUsed.toString()} gas units`);
+    console.log(`Actual cost (POL withdrawal): ${ethers.formatEther(receipt.gasUsed * maxFeePerGas)} POL`);
+    polWithdrawn = true;
+  } catch (e) {
+    console.warn(`Warning: POL withdrawal failed: ${e.message}. Skipping POL withdrawal.`);
   }
 
   // Estimate gas for withdrawing tokens
