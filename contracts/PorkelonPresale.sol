@@ -1,6 +1,84 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+contract Presale is Ownable {
+    IERC20 public token;
+    IERC20 public usdt;
+    address public fundsWallet;
+    uint256 public maticRate; // Tokens per POL (e.g., 1M PORK per POL)
+    uint256 public usdtRate;  // Tokens per USDT
+    uint256 public cap;       // Max tokens for presale
+    uint256 public tokensSold;
+    uint256 public startTime;
+    uint256 public endTime;
+    bool public presaleActive;
+
+    constructor(
+        address _token,
+        address _usdt,
+        address _fundsWallet,
+        uint256 _maticRate,
+        uint256 _usdtRate,
+        uint256 _cap
+    ) Ownable(msg.sender) {
+        token = IERC20(_token);
+        usdt = IERC20(_usdt);
+        fundsWallet = _fundsWallet;
+        maticRate = _maticRate;
+        usdtRate = _usdtRate;
+        cap = _cap;
+        presaleActive = false; // Activated when startTime is set
+    }
+
+    // Start presale
+    function startPresale(uint256 _startTime, uint256 _endTime) external onlyOwner {
+        require(_startTime >= block.timestamp, "Start time in past");
+        require(_endTime > _startTime, "Invalid end time");
+        startTime = _startTime;
+        endTime = _endTime;
+        presaleActive = true;
+    }
+
+    // Buy tokens with POL
+    function buyWithPOL() external payable {
+        require(presaleActive && block.timestamp >= startTime && block.timestamp <= endTime, "Presale not active");
+        require(msg.value >= 0.1 ether, "Below minimum purchase");
+        require(msg.value <= 10 ether, "Exceeds maximum purchase");
+        uint256 tokenAmount = msg.value * maticRate;
+        require(tokensSold + tokenAmount <= cap, "Exceeds presale cap");
+        require(token.balanceOf(address(this)) >= tokenAmount, "Insufficient tokens");
+
+        tokensSold += tokenAmount;
+        token.transfer(msg.sender, tokenAmount);
+        payable(fundsWallet).transfer(msg.value);
+    }
+
+    // Buy tokens with USDT
+    function buyWithUSDT(uint256 usdtAmount) external {
+        require(presaleActive && block.timestamp >= startTime && block.timestamp <= endTime, "Presale not active");
+        uint256 tokenAmount = usdtAmount * usdtRate;
+        require(tokensSold + tokenAmount <= cap, "Exceeds presale cap");
+        require(token.balanceOf(address(this)) >= tokenAmount, "Insufficient tokens");
+
+        tokensSold += tokenAmount;
+        usdt.transferFrom(msg.sender, fundsWallet, usdtAmount);
+        token.transfer(msg.sender, tokenAmount);
+    }
+
+    // End presale and transfer remaining tokens
+    function endPresale() external onlyOwner {
+        presaleActive = false;
+        uint256 remainingTokens = token.balanceOf(address(this));
+        if (remainingTokens > 0) {
+            token.transfer(owner(), remainingTokens);
+        }
+    }
+}
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
