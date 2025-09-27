@@ -1,93 +1,195 @@
-// scripts/redeem_and_forward.js
-// Usage: node redeem_and_forward.js <vaa_hex_or_base64_file> <wrapped_token_address> <new_porkelon_contract_address>
-// Example:
-//   node redeem_and_forward.js ./signedVaa.hex 0xWrappedTokenAddr 0xNewPorkelonAddr
-
+const { ethers } = require("hardhat");
+const fs = require("fs").promises;
+const path = require("path");
 require("dotenv").config();
-const fs = require("fs");
-const { ethers } = require("ethers");
-
-// Wormhole Token Bridge (Polygon) contract address (WTT / TokenBridge). From Wormhole docs.
-const TOKEN_BRIDGE_POLYGON_ADDRESS = "0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE"; // official WTT address for Polygon. 2
-
-// Minimal ABI for token bridge redeem (EVM)
-const TOKEN_BRIDGE_ABI = [
-  // completeTransfer takes bytes encoded VAA
-  "function completeTransfer(bytes memory encodedVm) public payable"
-];
-
-// Minimal ERC20 ABI
-const ERC20_ABI = [
-  "function balanceOf(address) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function transfer(address to, uint256 amount) returns (bool)",
-  "event Transfer(address indexed from, address indexed to, uint256 value)"
-];
 
 async function main() {
-  const args = process.argv.slice(2);
-  if (args.length < 3) {
-    console.error("Usage: node redeem_and_forward.js <vaa_file> <wrapped_token_address> <new_porkelon_contract>");
-    process.exit(1);
+  console.log("Starting PorkelonPresale redemption and forwarding...");
+
+  // Load deployer and network
+  const [deployer] = await ethers.getSigners();
+  const network = (await ethers.provider.getNetwork()).name;
+  console.log(`Network: ${network}`);
+  console.log(`Deployer account: ${deployer.address}`);
+  console.log(`POL Balance: ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} POL`);
+
+  // Configuration
+  const PRESALE_ADDRESS = process.env.PORKELON_PRESALE_ADDRESS || "0xYOUR_PRESALE_ADDRESS";
+  const FORWARD_ADDRESS = process.env.FORWARD_ADDRESS || process.env.DEV_WALLET || "0xBc2E051f3Dedcd0B9dDCA2078472f513a39df2C6";
+  const PORKELON_PROXY_ADDRESS = process.env.PORKELON_PROXY_ADDRESS || "0xYOUR_PROXY_ADDRESS";
+  const deploymentsPath = path.resolve(__dirname, "../deployments.json");
+
+  // Off-chain validation
+  if (!ethers.isAddress(PRESALE_ADDRESS) || PRESALE_ADDRESS === "0xYOUR_PRESALE_ADDRESS") {
+    throw new Error("Invalid or unset PORKELON_PRESALE_ADDRESS. Set in .env or run show-address.js.");
+  }
+  if (!ethers.isAddress(FORWARD_ADDRESS)) {
+    throw new Error(`Invalid FORWARD_ADDRESS or DEV_WALLET: ${FORWARD_ADDRESS}`);
+  }
+  if (!ethers.isAddress(PORKELON_PROXY_ADDRESS) || PORKELON_PROXY_ADDRESS === "0xYOUR_PROXY_ADDRESS") {
+    throw new Error("Invalid or unset PORKELON_PROXY_ADDRESS. Set in .env or run show-address.js.");
   }
 
-  const [vaaPath, wrappedTokenAddr, newPorkAddr] = args;
-  if (!process.env.PRIVATE_KEY || !process.env.RPC_URL) {
-    console.error(".env must contain PRIVATE_KEY and RPC_URL");
-    process.exit(1);
+  // Load presale contract
+  const presaleAbi = [
+    "function owner() view returns (address)",
+    "function endTime() view returns (uint256)",
+    "function withdraw() external",
+    "function withdrawTokens(address token, address to, uint256 amount) external",
+    "function balanceOf(address account) view returns (uint256)"
+  ];
+  const presale = await ethers.getContractAt(presaleAbi, PRESALE_ADDRESS, deployer);
+
+  // Verify presale contract exists
+  const presaleCode = await ethers.provider.getCode(PRESALE_ADDRESS);
+  if (presaleCode === "0x") {
+    throw new Error(`No contract found at presale address: ${PRESALE_ADDRESS}`);
   }
 
-  // Read VAA file. Accept hex (0x...) or base64 — detect
-  let vaaData = fs.readFileSync(vaaPath, "utf8").trim();
-  let vaaBytes;
-  if (vaaData.startsWith("0x")) {
-    vaaBytes = ethers.utils.arrayify(vaaData);
-  } else if (/^[A-Fa-f0-9]+$/.test(vaaData)) {
-    // plain hex without 0x
-    vaaBytes = ethers.utils.arrayify("0x" + vaaData);
-  } else {
-    // assume base64
-    vaaBytes = Buffer.from(vaaData, "base64");
+  // Verify ownership
+  const owner = await presale.owner();
+  if (owner.toLowerCase() !== deployer.address.toLowerCase()) {
+    throw new Error(`Deployer ${deployer.address} is not the owner of the presale contract (${owner})`);
   }
 
-  const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-  console.log("Using wallet:", wallet.address);
+  // Check if presale has ended
+  const endTime = await presale.endTime();
+  const currentTime = Math.floor(Date.now() / 1000);
+  if (currentTime < endTime) {
+    console.warn(`Warning: Presale has not ended yet (ends at ${new Date(endTime * 1000).toISOString()}). Proceeding with redemption...`);
+  }
 
-  // 1) Submit VAA to token bridge on Polygon (completeTransfer)
-  const tokenBridge = new ethers.Contract(TOKEN_BRIDGE_POLYGON_ADDRESS, TOKEN_BRIDGE_ABI, wallet);
-  console.log("Submitting VAA to Polygon token bridge at", TOKEN_BRIDGE_POLYGON_ADDRESS);
+  // Get Porkelon contract for token balance checks
+  const porkelonAbi = [
+    "function balanceOf(address account) view returns (uint256)",
+    "function totalSupply() view returns (uint256)"
+  ];
+  const porkelon = await ethers.getContractAt(porkelonAbi, PORKELON_PROXY_ADDRESS, deployer);
 
-  // estimate gas & submit
-  const tx = await tokenBridge.completeTransfer(vaaBytes, { gasLimit: 800000 });
-  console.log("Submitted completeTransfer tx:", tx.hash);
+  // Check presale contract's token balance
+  const presaleTokenBalance = await porkelon.balanceOf(PRESALE_ADDRESS);
+  console.log(`Presale contract token balance: ${ethers.formatEther(presaleTokenBalance)} PORK`);
+
+  // Get gas parameters
+  const feeData = await ethers.provider.getFeeData();
+  const gasPrice = feeData.gasPrice || (await ethers.provider.getGasPrice());
+  const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas || gasPrice;
+  const maxFeePerGas = feeData.maxFeePerGas || gasPrice;
+  console.log(`Gas price: ${ethers.formatUnits(maxFeePerGas, "gwei")} gwei`);
+  console.log(`Priority fee: ${ethers.formatUnits(maxPriorityFeePerGas, "gwei")} gwei`);
+
+  // Estimate gas for withdrawing POL (native currency)
+  console.log("Estimating gas for withdrawing POL...");
+  let gasLimit;
+  try {
+    gasLimit = await presale.withdraw.estimateGas();
+    console.log(`Estimated gas limit (POL withdrawal): ${gasLimit.toString()} gas units`);
+    const estimatedCost = gasLimit * maxFeePerGas;
+    console.log(`Estimated cost (POL withdrawal): ${ethers.formatEther(estimatedCost)} POL`);
+
+    // Apply 15% gas limit buffer
+    gasLimit = (gasLimit * BigInt(115)) / BigInt(100);
+    console.log(`Buffered gas limit (POL withdrawal): ${gasLimit.toString()} gas units`);
+    console.log(`Buffered cost (POL withdrawal): ${ethers.formatEther(gasLimit * maxFeePerGas)} POL`);
+
+    // Check deployer balance
+    const deployerBalance = await ethers.provider.getBalance(deployer.address);
+    if (deployerBalance < estimatedCost) {
+      throw new Error(
+        `Insufficient POL balance: ${ethers.formatEther(deployerBalance)} POL available, ` +
+        `${ethers.formatEther(estimatedCost)} POL required for POL withdrawal`
+      );
+    }
+  } catch (e) {
+    console.warn(`Warning: POL withdrawal estimation failed: ${e.message}. Skipping POL withdrawal.`);
+    gasLimit = null;
+  }
+
+  // Withdraw POL if possible
+  let polWithdrawn = false;
+  if (gasLimit) {
+    console.log(`Withdrawing POL to ${FORWARD_ADDRESS}...`);
+    try {
+      const tx = await presale.withdraw({ gasLimit, maxPriorityFeePerGas, maxFeePerGas });
+      const receipt = await tx.wait();
+      console.log(`POL withdrawn successfully!`);
+      console.log(`Actual gas used (POL withdrawal): ${receipt.gasUsed.toString()} gas units`);
+      console.log(`Actual cost (POL withdrawal): ${ethers.formatEther(receipt.gasUsed * maxFeePerGas)} POL`);
+      polWithdrawn = true;
+    } catch (e) {
+      console.error(`Error withdrawing POL: ${e.message}`);
+    }
+  }
+
+  // Estimate gas for withdrawing tokens
+  console.log("Estimating gas for withdrawing tokens...");
+  try {
+    gasLimit = await presale.withdrawTokens.estimateGas(PORKELON_PROXY_ADDRESS, FORWARD_ADDRESS, presaleTokenBalance);
+    console.log(`Estimated gas limit (token withdrawal): ${gasLimit.toString()} gas units`);
+    const estimatedCost = gasLimit * maxFeePerGas;
+    console.log(`Estimated cost (token withdrawal): ${ethers.formatEther(estimatedCost)} POL`);
+
+    // Apply 15% gas limit buffer
+    gasLimit = (gasLimit * BigInt(115)) / BigInt(100);
+    console.log(`Buffered gas limit (token withdrawal): ${gasLimit.toString()} gas units`);
+    console.log(`Buffered cost (token withdrawal): ${ethers.formatEther(gasLimit * maxFeePerGas)} POL`);
+
+    // Check deployer balance
+    const deployerBalance = await ethers.provider.getBalance(deployer.address);
+    if (deployerBalance < estimatedCost) {
+      throw new Error(
+        `Insufficient POL balance: ${ethers.formatEther(deployerBalance)} POL available, ` +
+        `${ethers.formatEther(estimatedCost)} POL required for token withdrawal`
+      );
+    }
+  } catch (e) {
+    throw new Error(`Gas estimation failed for token withdrawal: ${e.message}`);
+  }
+
+  // Withdraw tokens
+  console.log(`Withdrawing ${ethers.formatEther(presaleTokenBalance)} PORK to ${FORWARD_ADDRESS}...`);
+  const tx = await presale.withdrawTokens(PORKELON_PROXY_ADDRESS, FORWARD_ADDRESS, presaleTokenBalance, {
+    gasLimit,
+    maxPriorityFeePerGas,
+    maxFeePerGas
+  });
   const receipt = await tx.wait();
-  console.log("completeTransfer confirmed in block", receipt.blockNumber);
+  console.log(`Tokens withdrawn successfully!`);
+  console.log(`Actual gas used (token withdrawal): ${receipt.gasUsed.toString()} gas units`);
+  console.log(`Actual cost (token withdrawal): ${ethers.formatEther(receipt.gasUsed * maxFeePerGas)} POL`);
 
-  // 2) Check wrapped token balance
-  const wrapped = new ethers.Contract(wrappedTokenAddr, ERC20_ABI, wallet);
-  const balance = await wrapped.balanceOf(wallet.address);
-  console.log("Wrapped token balance for", wallet.address, "=", balance.toString());
+  // Verify forwarded balances
+  const forwardAddressTokenBalance = await porkelon.balanceOf(FORWARD_ADDRESS);
+  console.log(`Forward address (${FORWARD_ADDRESS}) token balance: ${ethers.formatEther(forwardAddressTokenBalance)} PORK`);
 
-  if (balance.eq(0)) {
-    console.warn("Redeem succeeded but balance is 0 — ensure VAA was for this recipient and token.");
-    process.exit(0);
+  // Update deployments.json
+  try {
+    let deployments = {};
+    try {
+      deployments = JSON.parse(await fs.readFile(deploymentsPath, "utf8"));
+    } catch (e) {
+      console.warn("deployments.json not found, creating new one.");
+    }
+    deployments.redemptionTimestamp = new Date().toISOString();
+    deployments.polWithdrawn = polWithdrawn;
+    deployments.tokensWithdrawn = ethers.formatEther(presaleTokenBalance);
+    deployments.forwardAddress = FORWARD_ADDRESS;
+    await fs.writeFile(deploymentsPath, JSON.stringify(deployments, null, 2));
+    console.log("Updated deployments.json with redemption details");
+  } catch (e) {
+    console.error(`Error updating deployments.json: ${e.message}`);
   }
 
-  // 3) Approve new PORK contract to pull tokens (or transfer directly)
-  // Option A: transfer wrapped tokens directly into the new contract address (if the contract expects direct transfer)
-  // Option B: approve the new contract and call a receive function. We'll do a plain transfer assuming the new contract will accept transfers.
-
-  console.log(`Transferring ${balance.toString()} wrapped tokens to new Porkelon contract: ${newPorkAddr}`);
-  const tx2 = await wrapped.transfer(newPorkAddr, balance, { gasLimit: 300000 });
-  console.log("Transfer tx:", tx2.hash);
-  await tx2.wait();
-  console.log("Transfer confirmed. Done.");
-
-  console.log("Redeem + forward complete.");
+  // Log verification note
+  console.log(`\nNote: If contracts need verification, run show-address.js to get addresses and verification commands.`);
 }
 
-main().catch(err => {
-  console.error("Error:", err);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    console.log("Redemption and forwarding completed successfully!");
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("Error during redemption and forwarding:", error);
+    process.exit(1);
+  });
