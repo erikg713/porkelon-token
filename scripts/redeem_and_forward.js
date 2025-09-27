@@ -30,7 +30,8 @@ async function main() {
     throw new Error("Invalid or unset PORKELON_PROXY_ADDRESS. Set in .env or run show-address.js.");
   }
 
-  // Load presale contract with full ABI
+  // Load presale contract with assumed ABI
+  // TODO: Replace with actual PorkelonPresale ABI from artifacts/contracts/PorkelonPresale.sol/PorkelonPresale.json
   const presaleAbi = [
     "function owner() view returns (address)",
     "function endTime() view returns (uint256)",
@@ -53,37 +54,51 @@ async function main() {
   }
 
   // Verify ownership
-  const owner = await presale.owner();
-  if (owner.toLowerCase() !== deployer.address.toLowerCase()) {
-    throw new Error(`Deployer ${deployer.address} is not the owner of the presale contract (${owner})`);
+  let owner;
+  try {
+    owner = await presale.owner();
+    if (owner.toLowerCase() !== deployer.address.toLowerCase()) {
+      throw new Error(`Deployer ${deployer.address} is not the owner of the presale contract (${owner})`);
+    }
+  } catch (e) {
+    throw new Error(`Failed to verify presale ownership: ${e.message}. Check if 'owner()' exists in the contract ABI.`);
   }
 
   // Verify presale parameters
-  const tokenAddress = await presale.token();
-  const tokenPrice = await presale.tokenPrice();
-  const minPurchase = await presale.minPurchase();
-  const maxPurchase = await presale.maxPurchase();
-  const startTime = await presale.startTime();
-  const endTime = await presale.endTime();
-  const totalTokens = await presale.totalTokens();
-  console.log("\nPresale contract parameters:");
-  console.log(`Token Address: ${tokenAddress}`);
-  console.log(`Token Price: ${ethers.formatUnits(tokenPrice, "wei")} wei/token`);
-  console.log(`Min Purchase: ${ethers.formatEther(minPurchase)} POL`);
-  console.log(`Max Purchase: ${ethers.formatEther(maxPurchase)} POL`);
-  console.log(`Start Time: ${new Date(Number(startTime) * 1000).toISOString()}`);
-  console.log(`End Time: ${new Date(Number(endTime) * 1000).toISOString()}`);
-  console.log(`Total Tokens: ${ethers.formatEther(totalTokens)} PORK`);
+  let tokenAddress, tokenPrice, minPurchase, maxPurchase, startTime, endTime, totalTokens;
+  try {
+    tokenAddress = await presale.token();
+    tokenPrice = await presale.tokenPrice();
+    minPurchase = await presale.minPurchase();
+    maxPurchase = await presale.maxPurchase();
+    startTime = await presale.startTime();
+    endTime = await presale.endTime();
+    totalTokens = await presale.totalTokens();
+    console.log("\nPresale contract parameters:");
+    console.log(`Token Address: ${tokenAddress}`);
+    console.log(`Token Price: ${ethers.formatUnits(tokenPrice, "wei")} wei/token`);
+    console.log(`Min Purchase: ${ethers.formatEther(minPurchase)} POL`);
+    console.log(`Max Purchase: ${ethers.formatEther(maxPurchase)} POL`);
+    console.log(`Start Time: ${new Date(Number(startTime) * 1000).toISOString()}`);
+    console.log(`End Time: ${new Date(Number(endTime) * 1000).toISOString()}`);
+    console.log(`Total Tokens: ${ethers.formatEther(totalTokens)} PORK`);
+  } catch (e) {
+    console.warn(`Warning: Failed to fetch presale parameters: ${e.message}. Proceeding with redemption...`);
+  }
 
-  // Validate token address matches Porkelon proxy
-  if (tokenAddress.toLowerCase() !== PORKELON_PROXY_ADDRESS.toLowerCase()) {
+  // Validate token address
+  if (tokenAddress && tokenAddress.toLowerCase() !== PORKELON_PROXY_ADDRESS.toLowerCase()) {
     console.warn(`Warning: Presale token address (${tokenAddress}) does not match PORKELON_PROXY_ADDRESS (${PORKELON_PROXY_ADDRESS})`);
   }
 
   // Check if presale has ended
-  const currentTime = Math.floor(Date.now() / 1000);
-  if (currentTime < endTime) {
-    console.warn(`Warning: Presale has not ended yet (ends at ${new Date(Number(endTime) * 1000).toISOString()}). Proceeding with redemption...`);
+  if (endTime) {
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (currentTime < endTime) {
+      // TODO: If contract enforces endTime, uncomment the following to halt execution:
+      // throw new Error(`Presale has not ended yet. Wait until ${new Date(Number(endTime) * 1000).toISOString()}`);
+      console.warn(`Warning: Presale has not ended yet (ends at ${new Date(Number(endTime) * 1000).toISOString()}). Proceeding with redemption...`);
+    }
   }
 
   // Get Porkelon contract for token balance checks
@@ -94,8 +109,13 @@ async function main() {
   const porkelon = await ethers.getContractAt(porkelonAbi, PORKELON_PROXY_ADDRESS, deployer);
 
   // Check presale contract's token balance
-  const presaleTokenBalance = await porkelon.balanceOf(PRESALE_ADDRESS);
-  console.log(`Presale contract token balance: ${ethers.formatEther(presaleTokenBalance)} PORK`);
+  let presaleTokenBalance;
+  try {
+    presaleTokenBalance = await porkelon.balanceOf(PRESALE_ADDRESS);
+    console.log(`Presale contract token balance: ${ethers.formatEther(presaleTokenBalance)} PORK`);
+  } catch (e) {
+    throw new Error(`Failed to fetch presale token balance: ${e.message}`);
+  }
 
   // Get gas parameters
   const feeData = await ethers.provider.getFeeData();
@@ -139,6 +159,7 @@ async function main() {
     polWithdrawn = true;
   } catch (e) {
     console.warn(`Warning: POL withdrawal failed: ${e.message}. Skipping POL withdrawal.`);
+    // TODO: If the contract uses a different function (e.g., redeemFunds()), update the call here.
   }
 
   // Estimate gas for withdrawing tokens
@@ -163,7 +184,7 @@ async function main() {
       );
     }
   } catch (e) {
-    throw new Error(`Gas estimation failed for token withdrawal: ${e.message}`);
+    throw new Error(`Gas estimation failed for token withdrawal: ${e.message}. Check if 'withdrawTokens(address,address,uint256)' exists in the ABI.`);
   }
 
   // Withdraw tokens
