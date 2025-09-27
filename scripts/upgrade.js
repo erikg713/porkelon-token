@@ -1,4 +1,26 @@
 const { ethers, upgrades } = require("hardhat");
+
+async function main() {
+  const proxy = process.env.PROXY_ADDRESS;
+  if (!proxy) throw new Error("Set PROXY_ADDRESS in .env");
+
+  const PorkelonV2 = await ethers.getContractFactory("PorkelonV2");
+  const upgraded = await upgrades.upgradeProxy(proxy, PorkelonV2);
+
+  console.log("Upgraded proxy at:", upgraded.address);
+  console.log(
+    "New implementation:",
+    await upgrades.erc1967.getImplementationAddress(upgraded.address)
+  );
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+
+
+const { ethers, upgrades } = require("hardhat");
 const fs = require("fs").promises;
 const path = require("path");
 require("dotenv").config();
