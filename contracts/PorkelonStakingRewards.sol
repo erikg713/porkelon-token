@@ -1,99 +1,70 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/**
- * @title PorkelonStakingRewards
- * @dev Staking contract for PORK tokens with time-based rewards.
- */
-contract PorkelonStakingRewards is Ownable, ReentrancyGuard {
-    using SafeMath for uint256;
-
-    IERC20 public immutable stakingToken;
-    IERC20 public immutable rewardToken;
+contract PorkelonStakingRewards is Ownable {
+    IERC20 public stakingToken;
+    IERC20 public rewardsToken;
     uint256 public rewardPool;
-    uint256 public rewardRate;
-    uint256 public constant REWARD_DURATION = 365 days;
-    uint256 public lastUpdateTime;
-    uint256 public rewardPerTokenStored;
-    uint256 public totalStaked;
+    mapping(address => uint256) public stakingBalance;
+    mapping(address => uint256) public stakingStartTime;
 
-    mapping(address => uint256) public userRewardPerTokenPaid;
-    mapping(address => uint256) public rewards;
-    mapping(address => uint256) public balances;
-
-    event Staked(address indexed user, uint256 amount);
-    event Withdrawn(address indexed user, uint256 amount);
-    event RewardPaid(address indexed user, uint256 reward);
-    event RewardPoolUpdated(uint256 oldPool, uint256 newPool);
-
-    constructor(IERC20 _stakingToken, IERC20 _rewardToken, uint256 _rewardPool) Ownable(msg.sender) {
-        require(address(_stakingToken) != address(0), "PorkelonStaking: Invalid staking token");
-        require(address(_rewardToken) != address(0), "PorkelonStaking: Invalid reward token");
-        require(_rewardPool > 0, "PorkelonStaking: Invalid reward pool");
-        stakingToken = _stakingToken;
-        rewardToken = _rewardToken;
+    constructor(address _stakingToken, address _rewardsToken, uint256 _rewardPool) Ownable(msg.sender) {
+        stakingToken = IERC20(_stakingToken);
+        rewardsToken = IERC20(_rewardsToken);
         rewardPool = _rewardPool;
-        rewardRate = _rewardPool.div(REWARD_DURATION);
-        lastUpdateTime = block.timestamp;
-        emit RewardPoolUpdated(0, _rewardPool);
     }
 
-    modifier updateReward(address account) {
-        rewardPerTokenStored = rewardPerToken();
-        lastUpdateTime = block.timestamp;
-        if (account != address(0)) {
-            rewards[account] = earned(account);
-            userRewardPerTokenPaid[account] = rewardPerTokenStored;
+    // Stake tokens
+    function stake(uint256 amount) external {
+        require(amount > 0, "Amount must be greater than 0");
+        require(stakingToken.balanceOf(msg.sender) >= amount, "Insufficient balance");
+
+        if (stakingBalance[msg.sender] > 0) {
+            _claimRewards(msg.sender);
+        } else {
+            stakingStartTime[msg.sender] = block.timestamp;
         }
-        _;
+
+        stakingToken.transferFrom(msg.sender, address(this), amount);
+        stakingBalance[msg.sender] += amount;
     }
 
-    function rewardPerToken() public view returns (uint256) {
-        if (totalStaked == 0) {
-            return rewardPerTokenStored;
+    // Unstake tokens with rewards
+    function unstake() external {
+        uint256 staked = stakingBalance[msg.sender];
+        require(staked > 0, "No tokens staked");
+
+        uint256 reward = _calculateRewards(msg.sender);
+        stakingBalance[msg.sender] = 0;
+        stakingStartTime[msg.sender] = 0;
+
+        stakingToken.transfer(msg.sender, staked);
+        if (reward > 0 && reward <= rewardPool) {
+            rewardsToken.transfer(msg.sender, reward);
+            rewardPool -= reward;
         }
-        return rewardPerTokenStored.add(
-            block.timestamp.sub(lastUpdateTime).mul(rewardRate).mul(1e18).div(totalStaked)
-        );
     }
 
-    function earned(address account) public view returns (uint256) {
-        return balances[account].mul(
-            rewardPerToken().sub(userRewardPerTokenPaid[account])
-        ).div(1e18).add(rewards[account]);
+    // Calculate rewards (0.1% per day)
+    function _calculateRewards(address account) internal view returns (uint256) {
+        uint256 staked = stakingBalance[account];
+        if (staked == 0) return 0;
+
+        uint256 duration = block.timestamp - stakingStartTime[account];
+        return (staked * duration * 1) / (1000 * 1 days);
     }
 
-    function stake(uint256 amount) external nonReentrant updateReward(msg.sender) {
-        require(amount > 0, "PorkelonStaking: Invalid amount");
-        totalStaked = totalStaked.add(amount);
-        balances[msg.sender] = balances[msg.sender].add(amount);
-        require(stakingToken.transferFrom(msg.sender, address(this), amount), "PorkelonStaking: Transfer failed");
-        emit Staked(msg.sender, amount);
-    }
+    // Claim rewards without unstaking
+    function claimRewards() external {
+        uint256 reward = _calculateRewards(msg.sender);
+        require(reward > 0, "No rewards available");
+        require(reward <= rewardPool, "Insufficient reward pool");
 
-    function withdraw(uint256 amount) external nonReentrant updateReward(msg.sender) {
-        require(amount > 0, "PorkelonStaking: Invalid amount");
-        require(balances[msg.sender] >= amount, "PorkelonStaking: Insufficient balance");
-        totalStaked = totalStaked.sub(amount);
-        balances[msg.sender] = balances[msg.sender].sub(amount);
-        require(stakingToken.transfer(msg.sender, amount), "PorkelonStaking: Transfer failed");
-        emit Withdrawn(msg.sender, amount);
-    }
-
-    function getReward() external nonReentrant updateReward(msg.sender) {
-        uint256 reward = rewards[msg.sender];
-        if (reward > 0) {
-            rewards[msg.sender] = 0;
-            require(reward <= rewardPool, "PorkelonStaking: Insufficient reward pool");
-            rewardPool = rewardPool.sub(reward);
-            require(rewardToken.transfer(msg.sender, reward), "PorkelonStaking: Reward transfer failed");
-            emit RewardPaid(msg.sender, reward);
-            emit RewardPoolUpdated(reward, rewardPool);
-        }
+        stakingStartTime[msg.sender] = block.timestamp;
+        rewardsToken.transfer(msg.sender, reward);
+        rewardPool -= reward;
     }
 }
