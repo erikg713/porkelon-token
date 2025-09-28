@@ -1,55 +1,48 @@
-// scripts/decrypt_keystore.js
-const { ethers } = require("hardhat");
-const fs = require("fs").promises;
-const path = require("path");
-require("dotenv").config();
+const fs = require('fs');
+const ethers = require('ethers');
+const prompt = require('prompt-sync')({ sigint: true }); // For secure password input
 
-async function main() {
-  console.log("Starting keystore decryption...");
-  const keystorePath = process.env.KEYSTORE_PATH || path.resolve(__dirname, "../keystore/your-keystore-file.json");
-  const password = process.env.KEYSTORE_PASSWORD;
-  const deployments = JSON.parse(await fs.readFile(path.resolve(__dirname, "../deployments.json"), "utf8"));
+// Path to the keystore file
+const keystorePath = './keystore.json'; // Replace with your keystore file path
 
-  if (!password) {
-    throw new Error("KEYSTORE_PASSWORD not set in .env");
-  }
-  if (!await fs.access(keystorePath).then(() => true).catch(() => false)) {
-    throw new Error(`Keystore file not found: ${keystorePath}`);
-  }
-
+async function decryptKeystore(keystorePath) {
   try {
-    const keystoreJson = await fs.readFile(keystorePath, "utf8");
+    // Securely prompt for password (input is hidden)
+    const password = prompt('Enter keystore password: ', { echo: '' });
+
+    // Validate inputs
+    if (!keystorePath || typeof keystorePath !== 'string' || keystorePath.trim() === '') {
+      throw new Error('Invalid or missing keystore file path.');
+    }
+
+    if (!password || typeof password !== 'string' || password.trim() === '') {
+      throw new Error('Password cannot be empty.');
+    }
+
+    // Check if keystore file exists and is readable
+    if (!fs.existsSync(keystorePath)) {
+      throw new Error(`Keystore file not found at: ${keystorePath}`);
+    }
+
+    let keystoreJson;
+    try {
+      // Read and parse the keystore file
+      keystoreJson = fs.readFileSync(keystorePath, 'utf8');
+      JSON.parse(keystoreJson); // Validate JSON format
+    } catch (error) {
+      throw new Error('Invalid keystore file: Not a valid JSON format.');
+    }
+
+    // Decrypt the keystore using the password
     const wallet = await ethers.Wallet.fromEncryptedJson(keystoreJson, password);
-    console.log("Wallet decrypted successfully!");
-    console.log("Address:", wallet.address);
 
-    const provider = ethers.provider;
-    const connectedWallet = wallet.connect(provider);
-    console.log("Connected to network:", provider._network.name);
-
-    const balance = await provider.getBalance(wallet.address);
-    console.log("POL Balance:", ethers.formatEther(balance), "POL");
-
-    const porkelonAbi = [
-      "function balanceOf(address account) view returns (uint256)",
-      "function symbol() view returns (string)"
-    ];
-    const porkelon = new ethers.Contract(deployments.Porkelon, porkelonAbi, connectedWallet);
-    const tokenSymbol = await porkelon.symbol();
-    const tokenBalance = await porkelon.balanceOf(wallet.address);
-    console.log(`${tokenSymbol} Balance:`, ethers.formatEther(tokenBalance));
+    // Output the private key and address
+    console.log('Private Key:', wallet.privateKey);
+    console.log('Address:', wallet.address);
   } catch (error) {
-    console.error("Error:", error.message);
-    process.exit(1);
+    console.error('Error decrypting keystore:', error.message);
   }
 }
 
-main()
-  .then(() => {
-    console.log("Keystore decryption completed!");
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error("Error:", error);
-    process.exit(1);
-  });
+// Run the function with validated inputs
+decryptKeystore(keystorePath);
