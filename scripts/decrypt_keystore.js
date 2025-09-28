@@ -1,22 +1,19 @@
 const fs = require('fs');
 const ethers = require('ethers');
-const prompt = require('prompt-sync')({ sigint: true }); // For secure password input
 
 // Path to the keystore file
 const keystorePath = './keystore.json'; // Replace with your keystore file path
+const password = 'your-password-here'; // Replace with the actual password
 
-async function decryptKeystore(keystorePath) {
+async function decryptKeystore(keystorePath, password) {
   try {
-    // Securely prompt for password (input is hidden)
-    const password = prompt('Enter keystore password: ', { echo: '' });
-
     // Validate inputs
     if (!keystorePath || typeof keystorePath !== 'string' || keystorePath.trim() === '') {
       throw new Error('Invalid or missing keystore file path.');
     }
 
     if (!password || typeof password !== 'string' || password.trim() === '') {
-      throw new Error('Password cannot be empty.');
+      throw new Error('Invalid or missing password.');
     }
 
     // Check if keystore file exists and is readable
@@ -45,4 +42,4 @@ async function decryptKeystore(keystorePath) {
 }
 
 // Run the function with validated inputs
-decryptKeystore(keystorePath);
+decryptKeystore(keystorePath, password);
