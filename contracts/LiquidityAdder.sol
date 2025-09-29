@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
@@ -26,27 +26,23 @@ contract LiquidityAdder is Ownable {
         require(msg.value >= maticAmount, "Insufficient MATIC sent");
         require(tokenAmount > 0 && maticAmount > 0, "Invalid amounts");
 
-        // Approve tokens and WMATIC
         token.approve(address(positionManager), tokenAmount);
         IERC20(WMATIC).approve(address(positionManager), maticAmount);
 
-        // Sort tokens (PORK/MATIC or MATIC/PORK)
         address token0 = token0IsPORK ? address(token) : WMATIC;
         address token1 = token0IsPORK ? WMATIC : address(token);
 
-        // Create pool if it doesn't exist
         address pool = factory.getPool(token0, token1, POOL_FEE);
         if (pool == address(0)) {
             pool = factory.createPool(token0, token1, POOL_FEE);
             IUniswapV3Pool(pool).initialize(sqrtPriceX96);
         }
 
-        // Add liquidity
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
             token0: token0,
             token1: token1,
             fee: POOL_FEE,
-            tickLower: -887220, // Wide range for simplicity
+            tickLower: -887220,
             tickUpper: 887220,
             amount0Desired: token0IsPORK ? tokenAmount : maticAmount,
             amount1Desired: token0IsPORK ? maticAmount : tokenAmount,
@@ -58,7 +54,6 @@ contract LiquidityAdder is Ownable {
 
         (uint256 tokenId, , , ) = positionManager.mint(params);
 
-        // Refund excess MATIC
         if (msg.value > maticAmount) {
             (bool sent, ) = owner().call{value: msg.value - maticAmount}("");
             require(sent, "Refund failed");
