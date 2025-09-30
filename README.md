@@ -53,17 +53,60 @@ Tokenomics built in:
 
 ✅ Staking (10%) → 10B PORK
 
-✅ Airdrops (10%) → 10B PORK
+✅ Airdrops (5%) → 5B PORK
 
-✅ Presale (10%) → 10B PORK
+✅ Presale (25%) → 10B PORK
 
 ✅ Rewards (10%) → 10B PORK
 
-✅ Team (20%) → 20B PORK (vesting recommended)
+✅ Team (25%) → 25B PORK (vesting recommended)
 
 ✅ Liquidity Lock (40%) → 40B PORK (locked 365 days)
 
 
+HOW TO CLAIM YOUR AIRDROP Coding partner
+
+Show thinking
+No problem, you don't need a custom website. There are easier ways for your community to claim the airdrop.
+
+The only thing your users need is a way to get their specific amount and proof from the proofs.json file. Here are two great options.
+
+Option 1 (Recommended): Use a Third-Party Airdrop Tool
+The easiest and most professional solution is to use a pre-built airdrop claiming tool. Many launchpad platforms offer this as a service.
+
+How it works: You, as the project owner, connect your wallet to their platform. You provide your PorkelonAirdrop contract address and simply upload the proofs.json file you generated.
+
+What users see: The platform gives you a unique link. Your community members can go to this link, connect their wallet, and the tool will automatically find their proof and show a simple "Claim" button.
+
+Examples: Platforms like Pinksale, Gempad, and others have these tools built-in. Look for a "Merkle Airdrop" or "Airdrop Claim" tool on a platform you trust.
+
+This is the best option for user experience, as it's simple and requires no technical skill from your community.
+
+Option 2 (Simple & Free): Host the proofs.json File Publicly
+This is a more manual but completely free alternative.
+
+Upload the File: Upload your proofs.json file to a public place, like a GitHub repository.
+
+Share the Link: Share the direct link to the proofs.json file with your community.
+
+Instruct Users to Claim Manually: Provide your community with instructions on how to find their proof and use it on a block explorer.
+
+How Users Claim Manually
+A user would follow these steps:
+
+Open the proofs.json file link you shared.
+
+Press Ctrl+F to search for their own wallet address.
+
+Copy their balance and their proof array.
+
+Go to your PorkelonAirdrop contract's page on a block explorer (like Polygonscan).
+
+Go to the "Contract" -> "Write Contract" tab and connect their wallet.
+
+Find the claim function.
+
+Paste their amount and proof into the correct fields and click "Write" to submit the transaction.
 
 > Allocation happens at deployment: contract mints and distributes automatically.
 
