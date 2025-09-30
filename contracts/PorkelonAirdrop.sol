@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title PorkelonAirdrop
- * @dev Manages airdrop distribution of PORK tokens.
+ * @dev Manages airdrop distribution using a Merkle Tree.
  */
 contract PorkelonAirdrop is Ownable {
-    using SafeMath for uint256;
+    using SafeERC20 for IERC20;
 
     IERC20 public immutable token;
-    uint256 public airdropPool;
+    bytes32 public immutable merkleRoot;
+    mapping(address => bool) public claimed;
 
-    event AirdropSent(address indexed recipient, uint256 amount);
-    event AirdropPoolUpdated(uint256 oldPool, uint256 newPool);
+    event Claimed(address indexed user, uint256 amount);
 
-    constructor(IERC20 _token, uint256 _airdropPool) Ownable(msg.sender) {
-        require(address(_token) != address(0), "PorkelonAirdrop: Invalid token address");
-        require(_airdropPool > 0, "PorkelonAirdrop: Invalid pool size");
-        token = _token;
-        airdropPool = _airdropPool;
-        emit AirdropPoolUpdated(0, _airdropPool);
+    constructor(address _tokenAddress, bytes32 _merkleRoot) Ownable(msg.sender) {
+        require(_tokenAddress != address(0), "Airdrop: Invalid token address");
+        token = IERC20(_tokenAddress);
+        merkleRoot = _merkleRoot;
     }
 
-    function airdropBatch(address[] calldata recipients, uint256[] calldata amounts) external onlyOwner {
-        require(recipients.length == amounts.length, "PorkelonAirdrop: Array length mismatch");
-        require(recipients.length > 0, "PorkelonAirdrop: Empty arrays");
+    function claim(uint256 amount, bytes32[] calldata proof) external {
+        require(!claimed[msg.sender], "Airdrop: Already claimed");
 
-        uint256 total = 0;
-        for (uint256 i = 0; i < amounts.length; i++) {
-            total = total.add(amounts[i]);
-        }
-        require(total <= airdropPool, "PorkelonAirdrop: Insufficient funds");
+        // Verify the user's proof against the Merkle root
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, amount));
+        require(MerkleProof.verify(proof, merkleRoot, leaf), "Airdrop: Invalid proof");
 
-        airdropPool = airdropPool.sub(total);
-        emit AirdropPoolUpdated(total, airdropPool);
+        claimed[msg.sender] = true;
+        
+        // This contract must be funded with the total airdrop supply
+        token.safeTransfer(msg.sender, amount);
 
-        for (uint256 i = 0; i < recipients.length; i++) {
-            if (amounts[i] > 0 && recipients[i] != address(0)) {
-                require(token.transfer(recipients[i], amounts[i]), "PorkelonAirdrop: Transfer failed");
-                emit AirdropSent(recipients[i], amounts[i]);
-            }
-        }
+        emit Claimed(msg.sender, amount);
+    }
+    
+    // Safety function for the owner to withdraw any remaining tokens after the airdrop period
+    function withdrawUnclaimedTokens() external onlyOwner {
+        token.safeTransfer(owner(), token.balanceOf(address(this)));
     }
 }
