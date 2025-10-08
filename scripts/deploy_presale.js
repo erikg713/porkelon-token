@@ -1,3 +1,47 @@
+const hre = require("hardhat");
+
+async function main() {
+  const DEV_WALLET = "0xBc2E051f3Dedcd0B9dDCA2078472f513a39df2C6";
+
+  // --- configurable params ---
+  const TOKEN = "0xYOUR_PORKELON_TOKEN_ADDRESS"; // PORK token
+  const USDT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // Polygon USDT (mainnet)
+  const MATIC_RATE = 100000; // tokens per 1 MATIC
+  const USDT_RATE = 100000;  // tokens per 1 USDT
+  const CAP = hre.ethers.parseEther("500000000"); // 500M tokens
+  const MIN_PURCHASE_MATIC = hre.ethers.parseEther("0.1");
+  const MAX_PURCHASE_MATIC = hre.ethers.parseEther("5");
+  const PER_WALLET_CAP = hre.ethers.parseEther("10000000");
+  const LOCAL_OFFSET_HOURS = 0; // adjust if you want local time start
+  const MATIC_USD_PRICE = 0.3 * 1e6; // USDT base units (6 decimals)
+
+  const Presale = await hre.ethers.getContractFactory("Presale");
+  const presale = await Presale.deploy(
+    TOKEN,
+    USDT,
+    DEV_WALLET,
+    MATIC_RATE,
+    USDT_RATE,
+    CAP,
+    MIN_PURCHASE_MATIC,
+    MAX_PURCHASE_MATIC,
+    PER_WALLET_CAP,
+    LOCAL_OFFSET_HOURS,
+    MATIC_USD_PRICE
+  );
+
+  await presale.waitForDeployment();
+
+  console.log(`✅ Presale deployed at: ${await presale.getAddress()}`);
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+
 const { ethers, upgrades } = require("hardhat");
 const fs = require("fs").promises;
 const path = require("path");
