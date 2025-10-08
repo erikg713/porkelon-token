@@ -55,13 +55,13 @@ Tokenomics built in:
 
 ✅ Airdrops (5%) → 5B PORK
 
-✅ Presale (25%) → 10B PORK
+✅ Presale (25%) → 25B PORK
 
 ✅ Rewards (10%) → 10B PORK
 
 ✅ Team (25%) → 25B PORK (vesting recommended)
 
-✅ Liquidity Lock (40%) → 40B PORK (locked 365 days)
+✅ Liquidity Lock (25%) → 25B PORK (locked 365 days)
 
 
 HOW TO CLAIM YOUR AIRDROP Coding partner
