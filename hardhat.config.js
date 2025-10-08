@@ -1,37 +1,17 @@
-// hardhat.config.js
 require("@nomicfoundation/hardhat-toolbox");
 require("@openzeppelin/hardhat-upgrades");
 require("dotenv").config();
 
 module.exports = {
-  solidity: {
-    version: "0.8.24",
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200
-      },
-      evmVersion: "paris"
-    }
-  },
+  solidity: "0.8.24",
   networks: {
-    amoy: {
-      url: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology/",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 80002,
-      gasPrice: 30000000000 // 30 Gwei
-    }
+    polygon: {
+      url: "https://rpc.ankr.com/polygon", // or your Infura key if preferred
+      accounts: [process.env.PRIVATE_KEY], // private key of deployer
+      gasPrice: "auto",
+    },
   },
   etherscan: {
-    apiKey: {
-      polygonAmoy: process.env.POLYGONSCAN_API_KEY
-    }
+    apiKey: process.env.POLYGONSCAN_API_KEY, // optional: for verification
   },
-  gasReporter: {
-    enabled: process.env.REPORT_GAS === "true",
-    currency: "USD"
-  },
-  mocha: {
-    timeout: 60000
-  }
 };
