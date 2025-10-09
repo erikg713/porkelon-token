@@ -1,92 +1,55 @@
-const { ethers, upgrades } = require("hardhat");
-const fs = require("fs").promises;
-const path = require("path");
-require("dotenv").config();
-
-const config = {
-  proxyAddress: process.env.PORKELON_PROXY_ADDRESS || "0xYOUR_PROXY_ADDRESS",
-  devWallet: process.env.DEV_WALLET || "0xBc2E051f3Dedcd0B9dDCA2078472f513a39df2C6",
-  presale: {
-    tokenPrice: BigInt(process.env.PRESALE_TOKEN_PRICE || "1000000000000000"), // 1e15 wei/token
-    minPurchase: BigInt(process.env.PRESALE_MIN_PURCHASE || "100000000000000000"), // 0.1 POL
-    maxPurchase: BigInt(process.env.PRESALE_MAX_PURCHASE || "10000000000000000000"), // 10 POL
-    startTime: BigInt(process.env.PRESALE_START_TIME || Math.floor(Date.now() / 1000) + 3600), // Start in 1 hour
-    endTime: BigInt(process.env.PRESALE_END_TIME || Math.floor(Date.now() / 1000) + 86400 * 7), // End in 7 days
-    totalTokens: BigInt(process.env.PRESALE_TOTAL_TOKENS || "30000000000" + "0".repeat(18)), // 30B tokens
-  },
-  gasBuffer: 1.15, // 15% buffer for gas estimation
-};
-
-async function validateEnvironment(deployer) {
-  if (!ethers.isAddress(config.proxyAddress) || config.proxyAddress === "0xYOUR_PROXY_ADDRESS") {
-    throw new Error("Invalid or unset PROXY_ADDRESS. Set PORKELON_PROXY_ADDRESS in .env.");
-  }
-  if (deployer.address.toLowerCase() !== config.devWallet.toLowerCase()) {
-    throw new Error(`Deployer (${deployer.address}) must be DEV_WALLET (${config.devWallet})`);
-  }
-}
-
-async function estimateGas(transaction, gasParams) {
-  try {
-    const gasLimit = await ethers.provider.estimateGas({ ...transaction, ...gasParams });
-    const bufferedGasLimit = BigInt(Math.ceil(Number(gasLimit) * config.gasBuffer));
-    return { gasLimit: bufferedGasLimit, estimatedCost: bufferedGasLimit * gasParams.maxFeePerGas };
-  } catch (error) {
-    throw new Error(`Gas estimation failed: ${error.message}`);
-  }
-}
-
-async function deployPresale(deployer, gasParams) {
-  console.log("Deploying PorkelonPresale...");
-
-  const PorkelonPresale = await ethers.getContractFactory("PorkelonPresale");
-  const presale = await PorkelonPresale.deploy(
-    config.proxyAddress,
-    config.presale.tokenPrice,
-    config.presale.minPurchase,
-    config.presale.maxPurchase,
-    config.presale.startTime,
-    config.presale.endTime,
-    config.presale.totalTokens,
-    gasParams
-  );
-
-  const receipt = await presale.waitForDeployment();
-  console.log(`PorkelonPresale deployed to: ${await presale.getAddress()}`);
-  console.log(`Gas used: ${receipt.gasUsed.toString()} units`);
-  return presale;
-}
+// scripts/deploy_presale.js
+const hre = require("hardhat");
 
 async function main() {
-  console.log("Starting presale deployment...");
+  // Replace with your PORK token address (deployer must hold/mint presale allocation)
+  const PORK_TOKEN = "0xYOUR_PORKELON_TOKEN_ADDRESS";
+  // Polygon USDT
+  const USDT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 
-  const [deployer] = await ethers.getSigners();
-  console.log(`Deploying with account: ${deployer.address}`);
-  console.log(`POL Balance: ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))}`);
+  console.log("Deploying Presale with:");
+  console.log("PORK token:", PORK_TOKEN);
+  console.log("USDT token :", USDT);
 
-  await validateEnvironment(deployer);
+  const Presale = await hre.ethers.getContractFactory("Presale");
+  const presale = await Presale.deploy(PORK_TOKEN, USDT);
+  await presale.waitForDeployment();
 
-  const feeData = await ethers.provider.getFeeData();
-  const gasParams = {
-    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || feeData.gasPrice,
-    maxFeePerGas: feeData.maxFeePerGas || feeData.gasPrice,
-  };
+  const presaleAddress = await presale.getAddress();
+  console.log("✅ Presale deployed at:", presaleAddress);
 
-  const presale = await deployPresale(deployer, gasParams);
+  // Next steps (attempt token transfer of CAP to presale)
+  const [deployer] = await hre.ethers.getSigners();
+  console.log("Deployer:", await deployer.getAddress());
 
-  // Save deployment details
-  const deploymentsPath = path.resolve(__dirname, "../deployments.json");
-  const deployments = {
-    PorkelonPresale: await presale.getAddress(),
-    deployTimestamp: new Date().toISOString(),
-  };
-  await fs.writeFile(deploymentsPath, JSON.stringify(deployments, null, 2));
-  console.log("Deployment details saved to deployments.json");
+  const token = await hre.ethers.getContractAt("IERC20", PORK_TOKEN);
+  const cap = hre.ethers.parseUnits("500000000", 18); // 500M
+
+  // attempt to transfer CAP to presale contract
+  try {
+    const tx = await token.connect(deployer).transfer(presaleAddress, cap);
+    await tx.wait();
+    console.log("✅ Transferred CAP (500M) to presale contract");
+  } catch (err) {
+    console.warn("⚠️ Could not transfer CAP to presale contract. Make sure the deployer owns the presale allocation or mint/send tokens to the deployer beforehand.");
+  }
+
+  // If your token implements setPresaleContract (like your Porkelon upgradeable), call it:
+  try {
+    const porkelon = await hre.ethers.getContractAt("Porkelon", PORK_TOKEN);
+    const setTx = await porkelon.connect(deployer).setPresaleContract(presaleAddress);
+    await setTx.wait();
+    console.log("✅ Called setPresaleContract on Porkelon token");
+  } catch (err) {
+    console.warn("ℹ️ Could not call setPresaleContract — maybe deployer is not owner or token ABI mismatch. If needed, call setPresaleContract(presaleAddress) from the token owner.");
+  }
+
+  console.log("Deployment complete. Presale will be active at midnight UTC tonight and run for 30 days.");
 }
 
 main()
-  .then(() => console.log("Presale deployment completed successfully!"))
-  .catch((error) => {
-    console.error("Error during deployment:", error);
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err);
     process.exit(1);
   });
