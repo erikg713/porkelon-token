@@ -12,7 +12,8 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 /// - fixes incorrect override usage (uses _transfer instead of non-existent _update)
 /// - adds configurable fee (basis points) with caps and events
 /// - improves initializer usage for upgradeable contracts and adds input validation
-contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+
+     //contract Porkelon is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     // Fee is stored in basis points (bps). 100 bps = 1%.
     // Allows fine-grained control while minimizing storage writes when unchanged.
     uint16 public feeBps; // e.g., 100 = 1%
