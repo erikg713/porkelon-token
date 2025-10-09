@@ -3,15 +3,18 @@ require("@openzeppelin/hardhat-upgrades");
 require("dotenv").config();
 
 module.exports = {
-  solidity: "0.8.24",
-  networks: {
-    polygon: {
-      url: "https://rpc.ankr.com/polygon", // or your Infura key if preferred
-      accounts: [process.env.PRIVATE_KEY], // private key of deployer
-      gasPrice: "auto",
+  solidity: {
+    version: "0.8.24",
+    settings: {
+      optimizer: { enabled: true, runs: 200 },
+      evmVersion: "paris",
     },
   },
-  etherscan: {
-    apiKey: process.env.POLYGONSCAN_API_KEY, // optional: for verification
+  networks: {
+    polygon: {
+      url: process.env.POLYGON_RPC || "https://rpc.ankr.com/polygon",
+      accounts: [process.env.PRIVATE_KEY],
+    },
   },
+  etherscan: { apiKey: process.env.POLYGONSCAN_API_KEY },
 };
