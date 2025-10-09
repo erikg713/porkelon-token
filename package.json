@@ -23,6 +23,7 @@
     "ethers": "^6.13.2",
     "hardhat": "^2.22.10",
     "chai": "^4.3.7",
+  npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox @openzeppelin/contracts @openzeppelin/hardhat-upgrades dotenv
     "mocha": "^10.2.0"
   }
 }
