@@ -2,6 +2,8 @@ require("@nomicfoundation/hardhat-toolbox");
 require("@openzeppelin/hardhat-upgrades");
 require("dotenv").config();
 
+const { POLYGON_RPC_URL, PRIVATE_KEY, POLYGONSCAN_API_KEY } = process.env;
+
 module.exports = {
   solidity: {
     version: "0.8.24",
@@ -10,11 +12,14 @@ module.exports = {
       evmVersion: "paris",
     },
   },
+  defaultNetwork: "polygon",
   networks: {
     polygon: {
-      url: process.env.POLYGON_RPC || "https://rpc.ankr.com/polygon",
-      accounts: [process.env.PRIVATE_KEY],
+      url: POLYGON_RPC_URL,
+      accounts: [PRIVATE_KEY],
     },
   },
-  etherscan: { apiKey: process.env.POLYGONSCAN_API_KEY },
+  etherscan: {
+    apiKey: POLYGONSCAN_API_KEY,
+  },
 };
