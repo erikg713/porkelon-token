@@ -28,8 +28,14 @@ interface INonfungiblePositionManager {
         address recipient;
         uint256 deadline;
     }
-
+    struct CollectParams {
+        uint256 tokenId;
+        address recipient;
+        uint128 amount0Max;
+        uint128 amount1Max;
+    }
     function mint(MintParams calldata params) external returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
+    function collect(CollectParams calldata params) external returns (uint256 amount0, uint256 amount1);
     function positions(uint256 tokenId) external view returns (
         uint96 nonce,
         address operator,
@@ -51,33 +57,21 @@ interface IWMATIC {
     function withdraw(uint256 wad) external;
 }
 
-function collectFees(uint256 tokenId, uint128 amount0Max, uint128 amount1Max) external onlyRole(DEFAULT_ADMIN_ROLE) {
-    INonfungiblePositionManager(NONFUNGIBLE_POSITION_MANAGER).collect(
-        INonfungiblePositionManager.CollectParams({
-            tokenId: tokenId,
-            recipient: multisig,
-            amount0Max: amount0Max,
-            amount1Max: amount1Max
-        })
-    );
-}
-
 contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     mapping(bytes32 => bool) public usedNonces; // Replay protection for bridge
-    address public immutable multisig; // Gnosis Safe address for admin control
-    string public metadataURI; // Optional metadata (e.g., logo, description)
+    address public immutable multisig; // Gnosis Safe address
+    string public metadataURI; // Metadata (e.g., logo URI)
 
-    // Staking Implementation
+    // Staking
     struct StakeInfo {
-        uint256 amount; // Amount staked
-        uint256 rewardDebt; // Reward debt
-        uint256 lastStakeTime; // Last time user staked or claimed
+        uint256 amount;
+        uint256 rewardDebt;
+        uint256 lastStakeTime;
     }
-
     mapping(address => StakeInfo) public stakes;
     uint256 public totalStaked;
     uint256 public rewardPerTokenStored;
@@ -85,13 +79,13 @@ contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable 
     uint256 public lastUpdateTime;
     uint256 public constant REWARD_PRECISION = 1e18;
 
-    // Liquidity Pool Integration (QuickSwap V3 on Polygon)
+    // Liquidity Pool (QuickSwap V3)
     address public constant UNISWAP_V3_FACTORY = 0x411b0fAcC3489691f28ad58c47006AF5E3Ab3A28;
     address public constant NONFUNGIBLE_POSITION_MANAGER = 0x8eF88E4c7CfbbaC1C163f7eddd4B578792201de6;
     address public constant WMATIC = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
     uint24 public constant POOL_FEE = 3000; // 0.3% fee tier
-    address public liquidityPool; // PORK/WMATIC pool address
-    bool public isPORKToken0; // Cache token order (PORK < WMATIC)
+    address public liquidityPool; // PORK/WMATIC pool
+    bool public isPORKToken0; // Cached token order
     uint256[] public liquidityPositionIds; // Array of NFT position IDs
 
     event Staked(address indexed user, uint256 amount);
@@ -101,6 +95,7 @@ contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable 
     event MetadataUpdated(string uri);
     event LiquidityPoolCreated(address pool);
     event LiquidityAdded(uint256 tokenId, uint128 liquidity, uint256 amountPORK, uint256 amountMATIC);
+    event FeesCollected(uint256 tokenId, uint256 amount0, uint256 amount1);
 
     constructor(
         address _multisig,
@@ -113,13 +108,12 @@ contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable 
         _grantRole(PAUSER_ROLE, _multisig);
         lastUpdateTime = block.timestamp;
 
-        // Pre-approve Position Manager for PORK and WMATIC (max approval)
+        // Pre-approve Position Manager for PORK and WMATIC
         IERC20(address(this)).approve(NONFUNGIBLE_POSITION_MANAGER, type(uint256).max);
         IERC20(WMATIC).approve(NONFUNGIBLE_POSITION_MANAGER, type(uint256).max);
     }
 
-    // --- Staking Functions (Unchanged) ---
-
+    // --- Staking Functions ---
     function _updateRewards() internal {
         if (totalStaked == 0) {
             lastUpdateTime = block.timestamp;
@@ -192,29 +186,23 @@ contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable 
         _mint(address(this), amount);
     }
 
-    // --- Optimized Liquidity Pool Functions ---
+    // --- Liquidity Pool Functions ---
 
-    // Create PORK/WMATIC pool if it doesn't exist
     function createLiquidityPool() external onlyRole(DEFAULT_ADMIN_ROLE) returns (address pool) {
-        // Check if pool already exists to avoid redundant creation
         pool = IUniswapV3Factory(UNISWAP_V3_FACTORY).getPool(address(this), WMATIC, POOL_FEE);
         if (pool == address(0)) {
             pool = IUniswapV3Factory(UNISWAP_V3_FACTORY).createPool(address(this), WMATIC, POOL_FEE);
             isPORKToken0 = address(this) < WMATIC;
             liquidityPool = pool;
             emit LiquidityPoolCreated(pool);
-        } else {
-            // Pool exists, cache token order if not set
-            if (liquidityPool == address(0)) {
-                isPORKToken0 = address(this) < WMATIC;
-                liquidityPool = pool;
-                emit LiquidityPoolCreated(pool);
-            }
+        } else if (liquidityPool == address(0)) {
+            isPORKToken0 = address(this) < WMATIC;
+            liquidityPool = pool;
+            emit LiquidityPoolCreated(pool);
         }
         return pool;
     }
 
-    // Add liquidity to PORK/WMATIC pool
     function addLiquidity(
         uint256 amountPORKDesired,
         uint256 amountMATICDesired,
@@ -225,12 +213,10 @@ contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable 
         require(liquidityPool != address(0), "Pool not created");
         require(msg.value >= amountMATICDesired, "Insufficient MATIC sent");
 
-        // Wrap MATIC to WMATIC
         if (msg.value > 0) {
             IWMATIC(WMATIC).deposit{value: msg.value}();
         }
 
-        // Prepare mint parameters using cached token order
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
             token0: isPORKToken0 ? address(this) : WMATIC,
             token1: isPORKToken0 ? WMATIC : address(this),
@@ -239,25 +225,33 @@ contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable 
             tickUpper: tickUpper,
             amount0Desired: isPORKToken0 ? amountPORKDesired : amountMATICDesired,
             amount1Desired: isPORKToken0 ? amountMATICDesired : amountPORKDesired,
-            amount0Min: 0, // Remove min amounts for simplicity (rely on deadline)
+            amount0Min: 0,
             amount1Min: 0,
-            recipient: address(this), // Contract holds LP NFT
+            recipient: address(this),
             deadline: deadline
         });
 
-        // Mint liquidity position
         (uint256 tokenId, uint128 liquidity, , ) = INonfungiblePositionManager(NONFUNGIBLE_POSITION_MANAGER).mint(params);
         liquidityPositionIds.push(tokenId);
         emit LiquidityAdded(tokenId, liquidity, amountPORKDesired, amountMATICDesired);
 
-        // Refund excess MATIC if any
         if (msg.value > amountMATICDesired) {
             (bool success, ) = msg.sender.call{value: msg.value - amountMATICDesired}("");
             require(success, "Refund failed");
         }
     }
 
-    // View function to get all liquidity position IDs
+    function collectFees(uint256 tokenId, uint128 amount0Max, uint128 amount1Max) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
+            tokenId: tokenId,
+            recipient: multisig,
+            amount0Max: amount0Max,
+            amount1Max: amount1Max
+        });
+        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(NONFUNGIBLE_POSITION_MANAGER).collect(params);
+        emit FeesCollected(tokenId, amount0, amount1);
+    }
+
     function getLiquidityPositionIds() external view returns (uint256[] memory) {
         return liquidityPositionIds;
     }
@@ -311,7 +305,7 @@ contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable 
     }
 
     function verifySignatures(bytes32 payloadHash, bytes[] calldata signatures) private view returns (bool) {
-        return signatures.length >= 2; // Replace with actual Gnosis Safe verification
+        return signatures.length >= 2; // Replace with Gnosis Safe verification
     }
 
     receive() external payable {}
