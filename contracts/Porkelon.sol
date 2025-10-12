@@ -51,6 +51,17 @@ interface IWMATIC {
     function withdraw(uint256 wad) external;
 }
 
+function collectFees(uint256 tokenId, uint128 amount0Max, uint128 amount1Max) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    INonfungiblePositionManager(NONFUNGIBLE_POSITION_MANAGER).collect(
+        INonfungiblePositionManager.CollectParams({
+            tokenId: tokenId,
+            recipient: multisig,
+            amount0Max: amount0Max,
+            amount1Max: amount1Max
+        })
+    );
+}
+
 contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable {
     using SafeERC20 for IERC20;
 
