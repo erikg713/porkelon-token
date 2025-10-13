@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import WalletConnectProvider from '@walletconnect/web3-provider';
 import abi from './abi.json';
 import './index.css';
 
-const PRESALE_ADDRESS = '0xYOUR_DEPLOYED_PRESALE_ADDRESS_HERE'; // Replace after deploy
+const PRESALE_ADDRESS = '0xYOUR_DEPLOYED_PRESALE_ADDRESS_HERE'; // Update after deploy
+const PORK_ADDRESS = '0xYOUR_DEPLOYED_PORK_ADDRESS_HERE'; // If needed for extras
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F';
 const USDT_ABI = ['function approve(address spender, uint256 amount) public returns (bool)'];
 const CHAIN_ID = 137; // Polygon
-const RATE = 100000; // 1 MATIC/USDT = 100k PORK
+const RATE = 100000; // 1 = 100k PORK
+const CAP = 500000000; // For display
+const PER_WALLET_CAP = 10000000;
 
 function App() {
   const [provider, setProvider] = useState(null);
@@ -19,12 +23,15 @@ function App() {
   const [usdtAmount, setUsdtAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState('');
+  const [countdown, setCountdown] = useState('');
 
   useEffect(() => {
     if (account && provider) {
       initContract();
     }
-  }, [account, provider]);
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [account, provider, status.start, status.end]);
 
   async function initContract() {
     const presale = new ethers.Contract(PRESALE_ADDRESS, abi, provider);
@@ -39,20 +46,35 @@ function App() {
     const start = Number(await contractInst.startTime());
     const end = Number(await contractInst.endTime());
     const userPurchased = account ? ethers.formatEther(await contractInst.purchased(account)) : '0';
-    setStatus({ active, sold, cap, start, end, userPurchased });
+    setStatus({ active, sold: parseFloat(sold), cap: parseFloat(cap), start, end, userPurchased: parseFloat(userPurchased) });
   }
 
-  async function connectWallet() {
+  function updateCountdown() {
+    const now = Math.floor(Date.now() / 1000);
+    let diff = status.start - now;
+    let prefix = 'Starts in: ';
+    if (now >= status.start) {
+      diff = status.end - now;
+      prefix = status.active ? 'Ends in: ' : 'Ended ';
+    }
+    if (diff <= 0) {
+      setCountdown('Presale Over');
+      return;
+    }
+    const days = Math.floor(diff / 86400);
+    const hours = Math.floor((diff % 86400) / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+    const seconds = diff % 60;
+    setCountdown(`${prefix}${days}d ${hours}h ${minutes}m ${seconds}s`);
+  }
+
+  async function connectMetaMask() {
     if (window.ethereum) {
       const prov = new ethers.BrowserProvider(window.ethereum);
+      await switchNetwork();
       await prov.send('eth_requestAccounts', []);
       const sign = await prov.getSigner();
       const acc = await sign.getAddress();
-      const network = await prov.getNetwork();
-      if (Number(network.chainId) !== CHAIN_ID) {
-        alert('Switch to Polygon Network!');
-        return;
-      }
       setProvider(prov);
       setSigner(sign);
       setAccount(acc);
@@ -61,6 +83,51 @@ function App() {
     }
   }
 
+  async function connectWalletConnect() {
+    const wcProvider = new WalletConnectProvider({
+      rpc: { 137: 'https://polygon-rpc.com' },
+      chainId: CHAIN_ID,
+    });
+    await wcProvider.enable();
+    const prov = new ethers.BrowserProvider(wcProvider);
+    await switchNetwork(wcProvider);
+    const sign = await prov.getSigner();
+    const acc = await sign.getAddress();
+    setProvider(prov);
+    setSigner(sign);
+    setAccount(acc);
+  }
+
+  async function switchNetwork(customProvider = window.ethereum) {
+    try {
+      await customProvider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${CHAIN_ID.toString(16)}` }],
+      });
+    } catch (err) {
+      if (err.code === 4902) {
+        await customProvider.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: `0x${CHAIN_ID.toString(16)}`,
+            chainName: 'Polygon',
+            rpcUrls: ['https://polygon-rpc.com'],
+            nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+            blockExplorerUrls: ['https://polygonscan.com'],
+          }],
+        });
+      }
+    }
+  }
+
+  function disconnect() {
+    setAccount(null);
+    setProvider(null);
+    setSigner(null);
+    setContract(null);
+  }
+
+  // Buy functions remain the same...
   async function buyWithMatic() {
     if (!contract || !signer) return;
     setLoading(true);
@@ -71,7 +138,7 @@ function App() {
       setTxHash(tx.hash);
       await updateStatus(contract);
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Transaction failed');
     }
     setLoading(false);
   }
@@ -81,28 +148,21 @@ function App() {
     setLoading(true);
     try {
       const usdtContract = new ethers.Contract(USDT_ADDRESS, USDT_ABI, signer);
-      const amountUsdt = ethers.parseUnits(usdtAmount, 6); // USDT 6 decimals
+      const amountUsdt = ethers.parseUnits(usdtAmount, 6);
       await (await usdtContract.approve(PRESALE_ADDRESS, amountUsdt)).wait();
       const tx = await contract.connect(signer).buyWithUsdt(amountUsdt);
       await tx.wait();
       setTxHash(tx.hash);
       await updateStatus(contract);
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Transaction failed');
     }
     setLoading(false);
   }
 
-  function getTimeLeft() {
-    const now = Math.floor(Date.now() / 1000);
-    if (now < status.start) return 'Starts in ' + Math.floor((status.start - now) / 86400) + ' days';
-    if (now > status.end) return 'Ended';
-    return 'Ends in ' + Math.floor((status.end - now) / 86400) + ' days';
-  }
-
   function getPorkEstimate(isMatic) {
-    if (isMatic && maticAmount) return (parseFloat(maticAmount) * RATE).toFixed(0) + ' PORK';
-    if (!isMatic && usdtAmount) return (parseFloat(usdtAmount) * RATE).toFixed(0) + ' PORK';
+    if (isMatic && maticAmount) return (parseFloat(maticAmount) * RATE).toLocaleString() + ' PORK';
+    if (!isMatic && usdtAmount) return (parseFloat(usdtAmount) * RATE).toLocaleString() + ' PORK';
     return '0 PORK';
   }
 
@@ -111,21 +171,28 @@ function App() {
       <header>
         <img src="/logo.png" alt="PORK Logo" className="logo" />
         <h1>PORK Token Presale</h1>
-        <p>1 MATIC or 1 USDT = 100,000 PORK | Cap: 500M PORK | Per Wallet: 10M PORK</p>
+        <p>1 MATIC or 1 USDT = 100,000 PORK | Cap: {CAP.toLocaleString()} PORK | Per Wallet: {PER_WALLET_CAP.toLocaleString()} PORK</p>
         {!account ? (
-          <button onClick={connectWallet}>Connect Wallet</button>
+          <div className="connect-buttons">
+            <button onClick={connectMetaMask}>Connect MetaMask</button>
+            <button onClick={connectWalletConnect}>Connect WalletConnect</button>
+          </div>
         ) : (
-          <p>Connected: {account.slice(0, 6)}...{account.slice(-4)}</p>
+          <div>
+            <p>Connected: {account.slice(0, 6)}...{account.slice(-4)}</p>
+            <button onClick={disconnect}>Disconnect</button>
+          </div>
         )}
       </header>
 
       <section className="status">
-        <h2>Presale Status: {status.active ? 'Active' : 'Inactive'} ({getTimeLeft()})</h2>
+        <h2>Presale Status: {status.active ? 'Active' : 'Inactive'}</h2>
+        <p className="countdown">{countdown}</p>
         <div className="progress">
           <progress value={status.sold} max={status.cap}></progress>
-          <p>{status.sold} / {status.cap} PORK Sold</p>
+          <p>{status.sold.toLocaleString()} / {status.cap.toLocaleString()} PORK Sold ({((status.sold / status.cap) * 100).toFixed(2)}%)</p>
         </div>
-        {account && <p>Your Purchased: { (parseFloat(status.userPurchased) * RATE / 100000).toFixed(2) } PORK (wait, adjust for decimals)</p>} {/* Adjust display if needed */}
+        {account && <p>Your Purchased: {(status.userPurchased * RATE).toLocaleString()} PORK</p>}
       </section>
 
       {status.active && account && (
@@ -146,12 +213,10 @@ function App() {
         </section>
       )}
 
-      {txHash && <p>Tx: <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank">View on PolygonScan</a></p>}
+      {txHash && <p>Tx Success: <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank" rel="noopener">View on PolygonScan</a></p>}
 
       <footer>
-        <p>Contract: <a href={`https://polygonscan.com/address/${PRESALE_ADDRESS}`} target="_blank">{PRESALE_ADDRESS}</a></p>
-        <p>Dev Wallet: YOUR_DEV_WALLET_HERE</p>
-        {/* Add socials, whitepaper links */}
+        <p>Contract: <a href={`https://polygonscan.com/address/${PRESALE_ADDRESS}`} target="_blank" rel="noopener">{PRESALE_ADDRESS}</a></p>
       </footer>
     </div>
   );
