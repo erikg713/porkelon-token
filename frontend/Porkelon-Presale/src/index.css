@@ -1,1 +1,11 @@
-
+body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 0; padding: 0; }
+.app { max-width: 800px; margin: 0 auto; padding: 20px; text-align: center; }
+header { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.logo { width: 100px; }
+button { background: #007bff; color: #fff; border: none; padding: 10px 20px; margin: 10px; cursor: pointer; border-radius: 4px; }
+button:disabled { background: #ccc; }
+input { padding: 10px; margin: 10px; width: 200px; }
+.status, .buy { background: #fff; margin: 20px 0; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.progress progress { width: 100%; }
+.buy div { display: inline-block; margin: 20px; vertical-align: top; }
+footer { margin-top: 40px; font-size: 0.8em; }
