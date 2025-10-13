@@ -5,7 +5,7 @@ import abi from './abi.json';
 import './index.css';
 
 const PRESALE_ADDRESS = '0xYOUR_DEPLOYED_PRESALE_ADDRESS_HERE'; // Update after deploy
-const PORK_ADDRESS = '0xYOUR_DEPLOYED_PORK_ADDRESS_HERE'; // If needed for extras
+const PORK_ADDRESS = '0x7f024bd81c22dafae5ecca46912acd94511210d8'; // If needed for extras
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F';
 const USDT_ABI = ['function approve(address spender, uint256 amount) public returns (bool)'];
 const CHAIN_ID = 137; // Polygon
