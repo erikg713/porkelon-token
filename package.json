@@ -1,29 +1,39 @@
 {
-  "name": "porkelon",
+  "name": "porkelon-ecosystem",
   "version": "1.0.0",
-  "description": "Porkelon token ecosystem on Polygon",
+  "private": true,
   "scripts": {
     "compile": "hardhat compile",
-    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
-    "deploy:polygon": "hardhat run scripts/deploy.js --network polygon",
-    "upgrade:amoy": "hardhat run scripts/upgrade.js --network amoy",
-    "upgrade:polygon": "hardhat run scripts/upgrade.js --network polygon",
-    "decrypt": "hardhat run scripts/decrypt_keystore.js --network amoy",
-    "add-liquidity": "./scripts/add_liquidity.sh",
-    "lock-liquidity": "./scripts/lock_liquidity.sh",
     "test": "hardhat test",
-    "verify": "hardhat verify"
+    "coverage": "hardhat coverage",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "format": "prettier --write .",
+    "typechain": "hardhat typechain",
+    "build:web": "vite build",
+    "dev:web": "vite"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@openzeppelin/hardhat-upgrades": "^3.4.0",
-    "@openzeppelin/contracts": "^5.0.2",
-    "@openzeppelin/contracts-upgradeable": "^5.0.2",
-    "dotenv": "^16.4.5",
-    "ethers": "^6.13.2",
-    "hardhat": "^2.22.10",
-    "chai": "^4.3.7",
-  npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox @openzeppelin/contracts @openzeppelin/hardhat-upgrades dotenv
-    "mocha": "^10.2.0"
+    "hardhat": "latest",
+    "@nomicfoundation/hardhat-toolbox": "latest",
+    "typescript": "latest",
+    "ts-node": "latest",
+    "typechain": "latest",
+    "@typechain/hardhat": "latest",
+    "typechain-target-ethers-v6": "latest",
+    "@openzeppelin/contracts": "latest",
+    "solidity-coverage": "latest",
+    "eslint": "latest",
+    "prettier": "latest",
+    "husky": "latest",
+    "lint-staged": "latest"
+  },
+  "dependencies": {
+    "ethers": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "wagmi": "latest",
+    "@rainbow-me/rainbowkit": "latest",
+    "nft.storage": "latest",
+    "dotenv": "latest"
   }
 }
