@@ -1,199 +1,169 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.18;
 
-/// @title Porkelon Presale (Polygon)
-/// @notice Fixed tokenomics presale: MATIC + USDT purchases. Starts at next midnight UTC, runs 30 days.
-/// @dev Solidity 0.8.24 — use Hardhat optimizer runs = 200, evmVersion = "paris".
-
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./Porkelon.sol"; // or IERC20 interface
 
-contract Presale is Ownable, ReentrancyGuard {
-    using SafeERC20 for IERC20;
+interface IUniswapV2Router {
+    function addLiquidityETH(
+        address token,
+        uint amountTokenDesired,
+        uint amountTokenMin,
+        uint amountETHMin,
+        address to,
+        uint deadline
+    ) external payable returns (uint amountToken, uint amountETH, uint liquidity);
+}
 
-    // -----------------------------
-    // Token / funds
-    // -----------------------------
-    IERC20 public immutable token; // PORK (18 decimals)
-    IERC20 public immutable usdt;  // USDT (6 decimals)
+contract PorkelonPresale is Ownable, ReentrancyGuard {
+    Porkelon public token;
+    IUniswapV2Router public router;
+    address public liquidityReceiver; // where LP tokens are sent (or this contract)
+    bytes32 public merkleRoot; // optional whitelist
+    bool public whitelistEnabled;
 
-    // Funds receiver (dev wallet) — corrected address
-    address payable public constant FUNDS_WALLET = payable(0xcfe1f215d199b24f240711b3a7Cf30453D8F4566);
+    uint256 public presaleStart;
+    uint256 public presaleEnd;
+    uint256 public softCap;
+    uint256 public hardCap;
+    uint256 public raised;
+    uint256 public minContribution;
+    uint256 public maxContribution;
+    uint256 public presaleRate; // tokens per 1 ETH (no decimals)
+    uint256 public liquidityPercent; // e.g. 60 = 60%
 
-    // -----------------------------
-    // Fixed tokenomics (immutable)
-    // -----------------------------
-    uint256 public constant MATIC_RATE = 100_000;               // 1 MATIC = 100k PORK
-    uint256 public constant USDT_RATE  = 100_000;               // 1 USDT  = 100k PORK
-    uint256 public constant CAP        = 500_000_000 * 1e18;    // 500M PORK
-    uint256 public constant MIN_PURCHASE = 0.1 ether;           // 0.1 MATIC
-    uint256 public constant MAX_PURCHASE = 5 ether;             // 5 MATIC
-    uint256 public constant PER_WALLET_CAP = 10_000_000 * 1e18; // 10M PORK per wallet
+    mapping(address => uint256) public contributions;
+    bool public finalized;
+    bool public cancelled;
 
-    uint256 public constant GOAL_USD = 25_000_000 * 10**6;      // 25M USDT
-    uint256 public constant MATIC_USD_PRICE = 50 * 10**6;       // 1 MATIC = $50 (6 decimals)
+    event Contributed(address indexed user, uint256 amount);
+    event Finalized(uint256 raised, bool success);
+    event Refunded(address indexed user, uint256 amount);
 
-    uint256 private constant USDT_DECIMALS = 10**6;
-    uint256 private constant MATIC_DECIMALS = 1 ether;
-
-    // -----------------------------
-    // State
-    // -----------------------------
-    uint256 public tokensSold;
-    uint256 public usdRaised;
-    bool public presaleActive;
-
-    mapping(address => uint256) public purchased;
-
-    uint256 public immutable startTime;
-    uint256 public immutable endTime;
-
-    // -----------------------------
-    // Events
-    // -----------------------------
-    event PresaleStarted(uint256 startTime, uint256 endTime);
-    event PresaleEnded(uint256 timestamp, uint256 usdRaised);
-    event BoughtWithMatic(address indexed buyer, uint256 maticAmount, uint256 tokenAmount, uint256 usdAmount);
-    event BoughtWithUSDT(address indexed buyer, uint256 usdtAmount, uint256 tokenAmount);
-    event ERC20Withdraw(address indexed token, address indexed to, uint256 amount);
-    event EmergencyWithdraw(address indexed to, uint256 amount);
-
-    // -----------------------------
-    // Constructor
-    // -----------------------------
-    constructor(address _token, address _usdt) {
-        require(_token != address(0), "token zero");
-        require(_usdt != address(0), "usdt zero");
-
-        token = IERC20(_token);
-        usdt = IERC20(_usdt);
-
-        uint256 dayStart = block.timestamp - (block.timestamp % 1 days);
-        uint256 nextMidnight = dayStart + 1 days;
-        startTime = nextMidnight;
-        endTime = startTime + 30 days;
-
-        presaleActive = true;
-        emit PresaleStarted(startTime, endTime);
+    constructor(
+        address _token,
+        address _router,
+        address _liquidityReceiver,
+        uint256 _presaleStart,
+        uint256 _presaleEnd,
+        uint256 _softCap,
+        uint256 _hardCap,
+        uint256 _minContribution,
+        uint256 _maxContribution,
+        uint256 _presaleRate,
+        uint256 _liquidityPercent
+    ){
+        require(_token != address(0) && _router != address(0) && _liquidityReceiver != address(0), "zero addr");
+        require(_presaleStart < _presaleEnd, "invalid time");
+        token = Porkelon(_token);
+        router = IUniswapV2Router(_router);
+        liquidityReceiver = _liquidityReceiver;
+        presaleStart = _presaleStart;
+        presaleEnd = _presaleEnd;
+        softCap = _softCap;
+        hardCap = _hardCap;
+        minContribution = _minContribution;
+        maxContribution = _maxContribution;
+        presaleRate = _presaleRate;
+        liquidityPercent = _liquidityPercent;
     }
 
-    // -----------------------------
-    // Modifiers
-    // -----------------------------
-    modifier onlyWhileActive() {
-        require(presaleActive, "presale not active");
-        require(block.timestamp >= startTime && block.timestamp <= endTime, "outside window");
-        require(usdRaised < GOAL_USD, "goal reached");
-        _;
+    receive() external payable {
+        buy(msg.sender, bytes32(0), new bytes32); // fallback if whitelist disabled
     }
 
-    // -----------------------------
-    // Purchase: MATIC
-    // -----------------------------
-    function buyWithMatic() external payable nonReentrant onlyWhileActive {
-        uint256 maticAmount = msg.value;
-        require(maticAmount >= MIN_PURCHASE && maticAmount <= MAX_PURCHASE, "matic limits");
+    function setWhitelist(bytes32 _merkleRoot, bool enabled) external onlyOwner {
+        merkleRoot = _merkleRoot;
+        whitelistEnabled = enabled;
+    }
 
-        uint256 tokenAmount = (maticAmount * MATIC_RATE) / MATIC_DECIMALS;
-        require(tokenAmount > 0, "zero tokens");
-
-        uint256 newSold = tokensSold + tokenAmount;
-        require(newSold <= CAP, "cap exceeded");
-
-        uint256 newPurchased = purchased[msg.sender] + tokenAmount;
-        require(newPurchased <= PER_WALLET_CAP, "wallet cap exceeded");
-
-        tokensSold = newSold;
-        purchased[msg.sender] = newPurchased;
-
-        uint256 usdAmount = (maticAmount * MATIC_USD_PRICE) / MATIC_DECIMALS;
-        usdRaised += usdAmount;
-
-        token.safeTransfer(msg.sender, tokenAmount);
-
-        (bool sent, ) = FUNDS_WALLET.call{value: maticAmount}("");
-        require(sent, "funds transfer failed");
-
-        if (usdRaised >= GOAL_USD) {
-            presaleActive = false;
-            emit PresaleEnded(block.timestamp, usdRaised);
+    function buy(address beneficiary, bytes32 leaf, bytes32[] calldata proof) public payable nonReentrant {
+        require(block.timestamp >= presaleStart && block.timestamp <= presaleEnd, "not active");
+        require(!cancelled, "cancelled");
+        if (whitelistEnabled) {
+            bytes32 node = keccak256(abi.encodePacked(beneficiary));
+            require(MerkleProof.verify(proof, merkleRoot, node), "not whitelisted");
         }
+        uint256 amount = msg.value;
+        require(amount >= minContribution && contributions[beneficiary] + amount <= maxContribution, "bad contrib");
 
-        emit BoughtWithMatic(msg.sender, maticAmount, tokenAmount, usdAmount);
+        require(raised + amount <= hardCap, "exceeds hard cap");
+        contributions[beneficiary] += amount;
+        raised += amount;
+        emit Contributed(beneficiary, amount);
     }
 
-    // -----------------------------
-    // Purchase: USDT
-    // -----------------------------
-    function buyWithUSDT(uint256 usdtAmount) external nonReentrant onlyWhileActive {
-        require(usdtAmount > 0, "zero usdt");
-
-        uint256 tokenAmount = (usdtAmount * USDT_RATE) / USDT_DECIMALS;
-        require(tokenAmount > 0, "zero tokens");
-
-        uint256 newSold = tokensSold + tokenAmount;
-        require(newSold <= CAP, "cap exceeded");
-
-        uint256 newPurchased = purchased[msg.sender] + tokenAmount;
-        require(newPurchased <= PER_WALLET_CAP, "wallet cap exceeded");
-
-        tokensSold = newSold;
-        purchased[msg.sender] = newPurchased;
-
-        usdRaised += usdtAmount;
-
-        usdt.safeTransferFrom(msg.sender, FUNDS_WALLET, usdtAmount);
-        token.safeTransfer(msg.sender, tokenAmount);
-
-        if (usdRaised >= GOAL_USD) {
-            presaleActive = false;
-            emit PresaleEnded(block.timestamp, usdRaised);
-        }
-
-        emit BoughtWithUSDT(msg.sender, usdtAmount, tokenAmount);
+    // If presale fails or owner cancels
+    function claimRefund() external nonReentrant {
+        require(block.timestamp > presaleEnd || cancelled, "not ended");
+        require(raised < softCap || cancelled, "successful");
+        uint256 contributed = contributions[msg.sender];
+        require(contributed > 0, "no contribution");
+        contributions[msg.sender] = 0;
+        (bool ok,) = msg.sender.call{value: contributed}("");
+        require(ok, "refund failed");
+        emit Refunded(msg.sender, contributed);
     }
 
-    // -----------------------------
-    // Owner / emergency
-    // -----------------------------
-    function endPresale() external onlyOwner {
-        presaleActive = false;
-        emit PresaleEnded(block.timestamp, usdRaised);
+    // finalize: if success, add liquidity and enable token distribution
+    function finalize(uint256 tokenAmountForPresale) external onlyOwner nonReentrant {
+        require(!finalized, "done");
+        require(block.timestamp > presaleEnd, "not ended");
+        require(raised >= softCap, "softcap not reached");
+        finalized = true;
+
+        uint256 ethForLiquidity = (raised * liquidityPercent) / 100;
+        uint256 tokenForLiquidity = (tokenAmountForPresale * liquidityPercent) / 100;
+        uint256 tokenForDistribution = tokenAmountForPresale - tokenForLiquidity;
+
+        // Transfer tokens from owner to this contract: owner must approve token transfer OR transfer token first
+        // Owner should transfer tokenAmountForPresale tokens to this contract prior to calling finalize.
+        // Add liquidity
+        token.approve(address(router), tokenForLiquidity);
+
+        router.addLiquidityETH{value: ethForLiquidity}(
+            address(token),
+            tokenForLiquidity,
+            0,
+            0,
+            liquidityReceiver,
+            block.timestamp + 3600
+        );
+
+        // distribute tokens to contributors
+        // For gas reasons, distribution may be done via claim() per user or batched offchain. We'll implement claim logic.
+        emit Finalized(raised, true);
     }
 
-    function withdrawERC20(address erc20, address to) external onlyOwner {
-        require(to != address(0), "to zero");
-        IERC20 erc = IERC20(erc20);
-        uint256 bal = erc.balanceOf(address(this));
-        require(bal > 0, "no balance");
-        erc.safeTransfer(to, bal);
-        emit ERC20Withdraw(erc20, to, bal);
+    // After finalize, contributors call claimTokens to get their allocation
+    function claimTokens() external nonReentrant {
+        require(finalized, "not finalized");
+        uint256 contributed = contributions[msg.sender];
+        require(contributed > 0, "no contribution");
+        contributions[msg.sender] = 0;
+        uint256 tokensToSend = (contributed * presaleRate);
+        require(token.balanceOf(address(this)) >= tokensToSend, "insufficient tokens in contract");
+        token.transfer(msg.sender, tokensToSend);
     }
 
-    function emergencyWithdrawMatic() external onlyOwner {
-        uint256 bal = address(this).balance;
-        require(bal > 0, "no matic");
-        (bool sent, ) = owner().call{value: bal}("");
-        require(sent, "withdraw failed");
-        emit EmergencyWithdraw(owner(), bal);
+    // Owner utilities
+    function cancelPresale() external onlyOwner {
+        require(!finalized, "already finalized");
+        cancelled = true;
     }
 
-    // -----------------------------
-    // Views
-    // -----------------------------
-    function remainingTokens() external view returns (uint256) {
-        return CAP > tokensSold ? CAP - tokensSold : 0;
+    // Withdraw leftover ETH (owner fees, marketing) after finalize
+    function withdrawETH(address payable to, uint256 amount) external onlyOwner {
+        require(finalized, "not finalized");
+        require(to != address(0), "zero addr");
+        (bool ok,) = to.call{value: amount}("");
+        require(ok, "withdraw failed");
     }
 
-    function isLive() external view returns (bool) {
-        return presaleActive && block.timestamp >= startTime && block.timestamp <= endTime && usdRaised < GOAL_USD;
+    // emergency withdraw tokens owned by contract (only owner)
+    function emergencyWithdrawToken(address tokenAddr, address to) external onlyOwner {
+        IERC20(tokenAddr).transfer(to, IERC20(tokenAddr).balanceOf(address(this)));
     }
-
-    // -----------------------------
-    // Receive / Fallback
-    // -----------------------------
-    receive() external payable {}
-    fallback() external payable {}
 }
