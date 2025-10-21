@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <title>Porkelon Presale Countdown</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        #particles-js {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            background-color: #f3f4f6; /* bg-gray-100 */
+        }
+    </style>
+</head>
+<body class="text-gray-900">
+
+    <div id="particles-js"></div>
+
+    <div class="relative min-h-screen flex flex-col items-center justify-center p-8 z-10">
+        
+        <div class="w-full max-w-2xl mx-auto text-center">
+            
+            <img src="logo.jpg" alt="Porkelon Logo" class="mx-auto mb-5 w-32 h-32 rounded-full border-4 border-indigo-600 shadow-md">
+
+            <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-2">
+                Porkelon Presale
+            </h1>
+            <p class="text-lg md:text-xl text-gray-600 mb-8">The countdown to the next big thing has begun.</p>
+
+            <div id="countdown-container" class="bg-white rounded-2xl shadow-xl p-6 md:p-10">
+                <div id="timer" class="flex justify-center items-center space-x-4 md:space-x-8">
+                    
+                    <div class="time-segment text-center">
+                        <span id="hours" class="text-5xl sm:text-7xl md:text-8xl font-bold text-indigo-600">00</span>
+                        <span class="block text-sm md:text-base uppercase tracking-widest text-gray-500 mt-2">Hours</span>
+                    </div>
+                    
+                    <span class="text-5xl sm:text-7xl md:text-8xl font-light text-gray-300">:</span>
+                    
+                    <div class="time-segment text-center">
+                        <span id="minutes" class="text-5xl sm:text-7xl md:text-8xl font-bold text-indigo-600">00</span>
+                        <span class="block text-sm md:text-base uppercase tracking-widest text-gray-500 mt-2">Minutes</span>
+                    </div>
+                    
+                    <span class="text-5xl sm:text-7xl md:text-8xl font-light text-gray-300">:</span>
+                    
+                    <div class="time-segment text-center">
+                        <span id="seconds" class="text-5xl sm:text-7xl md:text-8xl font-bold text-indigo-600">00</span>
+                        <span class="block text-sm md:text-base uppercase tracking-widest text-gray-500 mt-2">Seconds</span>
+                    </div>
+                </div>
+
+                <div id="live-message" class="hidden text-center">
+                     <h2 class="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight">
+                        Presale is <span class="text-indigo-600">LIVE!</span>
+                    </h2>
+                    
+                    <a href="https://app.uniswap.org/swap?outputCurrency=YOUR_POLYGON_CONTRACT_ADDRESS_HERE&chain=polygon"
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl sm:text-2xl py-4 px-10 rounded-full transition-all duration-300 shadow-lg mt-8 transform hover:scale-105">
+                        Buy PORK on Polygon
+                    </a>
+                </div>
+            </div>
+            
+            <div class="mt-8 flex justify-center space-x-6">
+                <a href="https://porkelon.io" target="_blank" rel="noopener noreferrer" title="Website" class="text-gray-500 hover:text-indigo-600 transition-colors">
+                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"></path></svg>
+                </a>
+                <a href="https://twitter.com/porkelon" target="_blank" rel="noopener noreferrer" title="Twitter" class="text-gray-500 hover:text-indigo-600 transition-colors">
+                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.46 6c-.77.35-1.6.58-2.46.67.88-.53 1.56-1.37 1.88-2.38-.83.49-1.75.85-2.72 1.04C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.22-1.95-.54v.05c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.94.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.35 0-.69-.02-1.03-.06C2.64 19.3 5.4 20 8.3 20c7.56 0 11.7-6.25 11.7-11.7 0-.18 0-.35-.01-.53.8-.58 1.48-1.3 2.02-2.12z"></path></svg>
+                </a>
+                <a href="https://t.me/porkelon" target="_blank" rel="noopener noreferrer" title="Telegram" class="text-gray-500 hover:text-indigo-600 transition-colors">
+                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 11.9c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.3 1.39.2 1.02 1.01l-2.9 12.81c-.28.85-1.03 1.06-1.74.54L9.78 18.65z"></path></svg>
+                </a>
+                <a href="https://discord.gg/porkelon" target="_blank" rel="noopener noreferrer" title="Discord" class="text-gray-500 hover:text-indigo-600 transition-colors">
+                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19.54 0c1.356 0 2.46 1.104 2.46 2.46v19.08c0 1.356-1.104 2.46-2.46 2.46H4.46C3.104 24 2 22.896 2 21.54V2.46C2 1.104 3.104 0 4.46 0H19.54zM8.64 14.82c-1.104 0-2-.896-2-2s.896-2 2-2 2 .896 2 2-.896 2-2 2zm6.72 0c-1.104 0-2-.896-2-2s.896-2 2-2 2 .896 2 2-.896 2-2 2zM18.42 7.2c-1.3-1.62-3.54-2.88-6.42-2.88-2.88 0-5.1 1.26-6.42 2.88C3.12 9.18 2.82 11.76 3.66 14.1c1.8 1.62 4.08 2.52 6.78 2.52s4.98-.9 6.78-2.52c.84-2.34.54-4.92-1.8-6.9z"></path></svg>
+                </a>
+            </div>
+
+            <div class="w-full max-w-2xl mx-auto text-left bg-white rounded-2xl shadow-xl p-8 mt-12">
+                <h3 class="text-2xl font-bold text-center mb-6">Token Details</h3>
+                <ul class="space-y-4 text-gray-700">
+                    <li class="flex justify-between items-center">
+                        <span class="font-semibold text-gray-900">Token Name:</span>
+                        <span>Porkelon Token</span>
+                    </li>
+                    <li class="flex justify-between items-center">
+                        <span class="font-semibold text-gray-900">Symbol:</span>
+                        <span>$PORK</span>
+                    </li>
+                    <li class="flex justify-between items-center">
+                        <span class="font-semibold text-gray-900">Network:</span>
+                        <span class="flex items-center">
+                            <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/matic.png" alt="Polygon" class="w-5 h-5 mr-2">
+                            Polygon (Matic)
+                        </span>
+                    </li>
+                    <li class="flex justify-between items-center">
+                        <span class="font-semibold text-gray-900">Total Supply:</span>
+                        <span>1,000,000,000 $PORK</span>
+                    </li>
+                    <li class="flex flex-col sm:flex-row sm:justify-between">
+                        <span class="font-semibold text-gray-900 mb-1 sm:mb-0">Contract:</span>
+                        <span class="text-indigo-600 font-mono break-all text-sm sm:text-base">
+                            YOUR_POLYGON_CONTRACT_ADDRESS_HERE
+                        </span>
+                    </li>
+                </ul>
+                <hr class="my-6 border-gray-200">
+                <h4 class="font-semibold text-gray-900 mb-2">Description:</h4>
+                <p class="text-gray-600 text-sm">
+                    Porkelon Token (PORK) is a community-driven meme coin with a 1% burn marketing fee, designed for long-term growth and investor rewards. Total supply: 1 billion.
+                </p>
+            </div>
+
+            <p class="mt-8 text-gray-500">The presale begins at 6 AM. Be ready.</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+    <script>
+        // Initialize particles.js with new indigo color
+        particlesJS("particles-js", {
+          "particles": {
+            "number": {
+              "value": 80,
+              "density": {
+                "enable": true,
+                "value_area": 800
+              }
+            },
+            "color": {
+              "value": "#4f46e5" // indigo-600
+            },
+            "shape": {
+              "type": "circle",
+            },
+            "opacity": {
+              "value": 0.5,
+              "random": false,
+              "anim": {
+                "enable": false
+              }
+            },
+            "size": {
+              "value": 3,
+              "random": true,
+              "anim": {
+                "enable": false
+              }
+            },
+            "line_linked": {
+              "enable": true,
+              "distance": 150,
+              "color": "#4f46e5",
+              "opacity": 0.4,
+              "width": 1
+            },
+            "move": {
+              "enable": true,
+              "speed": 2,
+              "direction": "none",
+              "random": false,
+              "straight": false,
+              "out_mode": "out",
+              "bounce": false,
+            }
+          },
+          "interactivity": {
+            "detect_on": "canvas",
+            "events": {
+              "onhover": {
+                "enable": true,
+                "mode": "repulse"
+              },
+              "onclick": {
+                "enable": true,
+                "mode": "push"
+              },
+              "resize": true
+            },
+            "modes": {
+              "repulse": {
+                "distance": 100,
+                "duration": 0.4
+              },
+              "push": {
+                "particles_nb": 4
+              },
+            }
+          },
+          "retina_detect": true
+        });
+
+        // --- COUNTDOWN TIMER SCRIPT (No changes) ---
+
+        // Set the date we're counting down to
+        const countDownDate = new Date();
+        countDownDate.setDate(countDownDate.getDate() + 1);
+        countDownDate.setHours(6, 0, 0, 0); // 6:00 AM of the next day
+
+        const hoursEl = document.getElementById("hours");
+        const minutesEl = document.getElementById("minutes");
+        const secondsEl = document.getElementById("seconds");
+        const timerEl = document.getElementById('timer');
+        const liveMessageEl = document.getElementById('live-message');
+
+        // Update the count down every 1 second
+        const countdownInterval = setInterval(function() {
+
+            // Get today's date and time
+            const now = new Date().getTime();
+
+            // Find the distance between now and the count down date
+            const distance = countDownDate - now;
+
+            // Time calculations for days, hours, minutes and seconds
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            // Display the result in the elements
+            hoursEl.innerHTML = hours < 10 ? '0' + hours : hours;
+            minutesEl.innerHTML = minutes < 10 ? '0' + minutes : minutes;
+            secondsEl.innerHTML = seconds < 10 ? '0' + seconds : seconds;
+            
+            // If the count down is finished, write some text
+            if (distance < 0) {
+                clearInterval(countdownInterval);
+                timerEl.classList.add('hidden');
+                liveMessageEl.classList.remove('hidden');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
