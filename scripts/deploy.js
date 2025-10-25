@@ -1,77 +1,63 @@
-// scripts/deploy.js
-const { ethers, upgrades } = require("hardhat");
-
-const USDT_ADDRESS = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"; // Polygon USDT
+const { ethers, upgrades } = require('hardhat');
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying contracts with account:", deployer.address);
+  const ADMIN_ADDRESS = '0xYourAdminWallet';
+  const BRIDGE_OPERATOR = '0xYourBridgeWallet';
+  const MIGRATION_VAULT = '0xYourVaultWallet';
+  const UNISWAP_ROUTER = '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45'; // QuickSwap
 
-  // Wallets (replace with your actual addresses)
-  const teamWallet = "0xA0bFf660B20466F11E659dd948e2F18152E185bF";
-  const marketingWallet = "0x56e3CEF5C239fB8DF1A2D372ADCC0feDb4BA6E63";
-  const liquidityWallet = "0x23cE6D1E06D8509A5668e9E1602de1c2b19ba3a2";
+  console.log('Deploying with:', deployer.address);
 
-  // 1. Deploy Porkelon (upgradeable proxy)
-  const Porkelon = await ethers.getContractFactory("Porkelon");
-  const porkelonProxy = await upgrades.deployProxy(
-    Porkelon,
-    [teamWallet, marketingWallet, liquidityWallet], 
-    { initializer: "initialize", kind: "uups" }
-  );
-  await porkelonProxy.waitForDeployment();
-  const porkelonAddress = await porkelonProxy.getAddress();
-  console.log("✅ Porkelon deployed to:", porkelonAddress);
+  // Deploy Timelock
+  const Timelock = await ethers.getContractFactory('PorkelonTimelock');
+  const timelock = await Timelock.deploy(2 * 24 * 60 * 60, [ADMIN_ADDRESS], [ADMIN_ADDRESS], ADMIN_ADDRESS); // 48 hours
+  await timelock.waitForDeployment();
+  console.log('Timelock deployed to:', timelock.target);
 
-  // 2. Deploy Presale
-  const PorkelonPresale = await ethers.getContractFactory("PorkelonPresale");
-  const presaleCap = ethers.parseEther("10000000000"); // 10B cap
-  const presale = await PorkelonPresale.deploy(
-    porkelonAddress,
-    USDT_ADDRESS,
-    teamWallet,                     // funds wallet
-    ethers.parseEther("1000000"),   // 1M PORK per MATIC
-    ethers.parseEther("1000"),      // 1k PORK per USDT
-    presaleCap
-  );
+  // Deploy Porkelon (proxy)
+  const Porkelon = await ethers.getContractFactory('Porkelon');
+  const porkelon = await upgrades.deployProxy(Porkelon, [ADMIN_ADDRESS], {
+    initializer: 'initialize',
+    kind: 'transparent',
+    admin: timelock.target,
+  });
+  await porkelon.waitForDeployment();
+  console.log('Porkelon deployed to:', porkelon.target);
+
+  // Deploy Presale
+  const Presale = await ethers.getContractFactory('Presale');
+  const presale = await Presale.deploy(porkelon.target);
   await presale.waitForDeployment();
-  const presaleAddress = await presale.getAddress();
-  console.log("✅ PorkelonPresale deployed to:", presaleAddress);
+  console.log('Presale deployed to:', presale.target);
 
-  // 3. Deploy Airdrop
-  const PorkelonAirdrop = await ethers.getContractFactory("PorkelonAirdrop");
-  const airdrop = await PorkelonAirdrop.deploy(porkelonAddress, ethers.parseEther("5000000000")); // 5B
-  await airdrop.waitForDeployment();
-  const airdropAddress = await airdrop.getAddress();
-  console.log("✅ PorkelonAirdrop deployed to:", airdropAddress);
+  // Transfer presale tokens
+  await porkelon.transfer(presale.target, ethers.parseEther('40000000000'));
+  console.log('Transferred 40B $PORK to presale');
 
-  // 4. Deploy Staking
-  const PorkelonStaking = await ethers.getContractFactory("PorkelonStakingRewards");
-  const staking = await PorkelonStaking.deploy(porkelonAddress, porkelonAddress, ethers.parseEther("10000000000")); // 10B
+  // Deploy Staking
+  const Staking = await ethers.getContractFactory('Staking');
+  const staking = await Staking.deploy(porkelon.target, MIGRATION_VAULT);
   await staking.waitForDeployment();
-  const stakingAddress = await staking.getAddress();
-  console.log("✅ PorkelonStaking deployed to:", stakingAddress);
+  console.log('Staking deployed to:', staking.target);
 
-  // 5. Deploy Liquidity Locker
-  const PorkelonLiquidityLocker = await ethers.getContractFactory("PorkelonLiquidityLocker");
-  const locker = await PorkelonLiquidityLocker.deploy(
-    porkelonAddress,
-    liquidityWallet,
-    ethers.parseEther("40000000000") // 40B
-  );
-  await locker.waitForDeployment();
-  const lockerAddress = await locker.getAddress();
-  console.log("✅ PorkelonLiquidityLocker deployed to:", lockerAddress);
+  // Deploy Liquidity
+  const Liquidity = await ethers.getContractFactory('Liquidity');
+  const liquidity = await Liquidity.deploy(porkelon.target, UNISWAP_ROUTER);
+  await liquidity.waitForDeployment();
+  console.log('Liquidity deployed to:', liquidity.target);
 
-  // 6. Deploy Marketing Vault
-  const PorkelonMarketingVault = await ethers.getContractFactory("PorkelonMarketingVault");
-  const vault = await PorkelonMarketingVault.deploy(porkelonAddress, ethers.parseEther("10000000000")); // 10B
-  await vault.waitForDeployment();
-  const vaultAddress = await vault.getAddress();
-  console.log("✅ PorkelonMarketingVault deployed to:", vaultAddress);
-}
+  // Transfer ownership to timelock
+  await porkelon.transferOwnership(timelock.target);
+  await presale.transferOwnership(timelock.target);
+  await staking.transferOwnership(timelock.target);
+  await liquidity.transferOwnership(timelock.target);
+  console.log('Ownership transferred to timelock');
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+  console.log('Update constants.ts with:');
+  console.log(`ADMIN_ADDRESS: "${ADMIN_ADDRESS}"`);
+  console.log(`BRIDGE_OPERATOR: "${BRIDGE_OPERATOR}"`);
+  console.log(`MIGRATION_VAULT: "${MIGRATION_VAULT}"`);
+  console.log(`PRESALE_CONTRACT: "${presale.target}"`);
+  console.log(`TOKEN_CONTRACT: "${porkelon.target}"`);
+  console.log(`STAKING_CON
