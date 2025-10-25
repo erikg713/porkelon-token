@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Porkelon Presale Countdown</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -67,7 +67,7 @@
                         Presale is <span class="text-indigo-600">LIVE!</span>
                     </h2>
                     
-                    <a href="https://app.uniswap.org/swap?outputCurrency=YOUR_POLYGON_CONTRACT_ADDRESS_HERE&chain=polygon"
+                    <a href="https://app.uniswap.org/swap?outputCurrency=0x7f024bd81c22dafae5ecca46912acd94511210d8&chain=polygon"
                        target="_blank" 
                        rel="noopener noreferrer"
                        class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl sm:text-2xl py-4 px-10 rounded-full transition-all duration-300 shadow-lg mt-8 transform hover:scale-105">
@@ -80,7 +80,7 @@
                 <a href="https://porkelon.io" target="_blank" rel="noopener noreferrer" title="Website" class="text-gray-500 hover:text-indigo-600 transition-colors">
                     <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"></path></svg>
                 </a>
-                <a href="https://twitter.com/porkelon" target="_blank" rel="noopener noreferrer" title="Twitter" class="text-gray-500 hover:text-indigo-600 transition-colors">
+                <a href="https://x.com/PorkelonToken25" target="_blank" rel="noopener noreferrer" title="X" class="text-gray-500 hover:text-indigo-600 transition-colors">
                     <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.46 6c-.77.35-1.6.58-2.46.67.88-.53 1.56-1.37 1.88-2.38-.83.49-1.75.85-2.72 1.04C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.22-1.95-.54v.05c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.94.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.35 0-.69-.02-1.03-.06C2.64 19.3 5.4 20 8.3 20c7.56 0 11.7-6.25 11.7-11.7 0-.18 0-.35-.01-.53.8-.58 1.48-1.3 2.02-2.12z"></path></svg>
                 </a>
                 <a href="https://t.me/porkelon" target="_blank" rel="noopener noreferrer" title="Telegram" class="text-gray-500 hover:text-indigo-600 transition-colors">
@@ -111,19 +111,19 @@
                     </li>
                     <li class="flex justify-between items-center">
                         <span class="font-semibold text-gray-900">Total Supply:</span>
-                        <span>1,000,000,000 $PORK</span>
+                        <span>100,000,000,000 $PORK</span>
                     </li>
                     <li class="flex flex-col sm:flex-row sm:justify-between">
                         <span class="font-semibold text-gray-900 mb-1 sm:mb-0">Contract:</span>
                         <span class="text-indigo-600 font-mono break-all text-sm sm:text-base">
-                            YOUR_POLYGON_CONTRACT_ADDRESS_HERE
+                            0x7f024bd81c22dafae5ecca46912acd94511210d8
                         </span>
                     </li>
                 </ul>
                 <hr class="my-6 border-gray-200">
                 <h4 class="font-semibold text-gray-900 mb-2">Description:</h4>
                 <p class="text-gray-600 text-sm">
-                    Porkelon Token (PORK) is a community-driven meme coin with a 1% burn marketing fee, designed for long-term growth and investor rewards. Total supply: 1 billion.
+                    Porkelon Token (PORK) is a community-driven meme coin with a 1% burn marketing fee, designed for long-term growth and investor rewards. Total supply: 100 billion.
                 </p>
             </div>
 
@@ -131,7 +131,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
 
     <script>
         // Initialize particles.js with new indigo color
@@ -207,7 +207,7 @@
           "retina_detect": true
         });
 
-        // --- COUNTDOWN TIMER SCRIPT (No changes) ---
+        // --- COUNTDOWN TIMER SCRIPT ---
 
         // Set the date we're counting down to
         const countDownDate = new Date();
@@ -227,9 +227,9 @@
             const now = new Date().getTime();
 
             // Find the distance between now and the count down date
-            const distance = countDownDate - now;
+            const distance = countDownDate.getTime() - now;
 
-            // Time calculations for days, hours, minutes and seconds
+            // Time calculations for hours, minutes and seconds
             const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((distance % (1000 * 60)) / 1000);
