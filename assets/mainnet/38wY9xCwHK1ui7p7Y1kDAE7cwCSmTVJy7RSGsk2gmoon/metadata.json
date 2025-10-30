@@ -1,1 +1,32 @@
-
+{
+  "name": "Porkelon Token",
+  "symbol": "PORK",
+  "description": "Porkelon Token ($PORK) — a community-driven meme coin launched on the Polygon Network. Built for utility, staking, and decentralized governance. Join the herd and feed the blockchain revolution.",
+  "image": "ipfs://QmExampleCID123456789abcdefgh123456789abcdefgh123456789/porkelon.png",
+  "external_url": "https://porkelon.b12sites.com",
+  "animation_url": "ipfs://QmExampleCID123456789abcdefgh123456789abcdefgh123456789/promo.mp4",
+  "background_color": "000000",
+  "attributes": [
+    {
+      "trait_type": "Network",
+      "value": "Polygon Mainnet"
+    },
+    {
+      "trait_type": "Token Type",
+      "value": "ERC20 Utility"
+    },
+    {
+      "trait_type": "Total Supply",
+      "value": "100,000,000,000"
+    },
+    {
+      "trait_type": "Launch Year",
+      "value": "2025"
+    },
+    {
+      "trait_type": "Community Rank",
+      "value": "S-tier"
+    }
+  ],
+  "compiler": "GPT-5 Token Metadata Generator"
+}
