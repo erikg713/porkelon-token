@@ -4,7 +4,7 @@
   "symbol": "PORK",
   "name": "Porkelon Token",
   "decimals": 9,
-  "logoURI": "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/porkelon-assets/main/assets/mainnet/38wY9xCwHK1ui7p7Y1kDAE7cwCSmTVJy7RSGsk2gmoon/logo.png",
+  "logoURI": "https://raw.githubusercontent.com/ERIKG713/porkelon-assets/main/assets/mainnet/38wY9xCwHK1ui7p7Y1kDAE7cwCSmTVJy7RSGsk2gmoon/logo.png",
   "tags": [
     "meme",
     "community",
@@ -15,6 +15,6 @@
     "twitter": "https://twitter.com/porkelon",
     "telegram": "https://t.me/porkelon",
     "discord": "https://discord.gg/porkelon",
-    "description": "Porkelon Token (PORK) is a community-driven meme coin with a 1% burn marketing fee, designed for long-term growth and investor rewards. Total supply: 60 billion."
+    "description": "Porkelon Token (PORK) is a community-driven meme coin with a 1% burn marketing fee, designed for long-term growth and investor rewards. Total supply: 100 billion."
   }
 }
