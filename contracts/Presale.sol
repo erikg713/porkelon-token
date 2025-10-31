@@ -1,169 +1,158 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+/*
+  Presale contract:
+  - Buyers send USDC (ERC20 with 6 decimals) by calling buy(usdcAmount)
+  - They receive PORK tokens minted to their address at the configured rate
+  - Rate is expressed as X whole PORK per 1 USDC (eg. 3_000_000)
+  - The contract calculates token amounts respecting both tokens' decimals
+*/
+
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./Porkelon.sol"; // or IERC20 interface
 
-interface IUniswapV2Router {
-    function addLiquidityETH(
-        address token,
-        uint amountTokenDesired,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline
-    ) external payable returns (uint amountToken, uint amountETH, uint liquidity);
+interface IMintableERC20 {
+    function mint(address to, uint256 amount) external;
+    function decimals() external view returns (uint8);
 }
 
-contract PorkelonPresale is Ownable, ReentrancyGuard {
-    Porkelon public token;
-    IUniswapV2Router public router;
-    address public liquidityReceiver; // where LP tokens are sent (or this contract)
-    bytes32 public merkleRoot; // optional whitelist
-    bool public whitelistEnabled;
+interface IERC20Decimals {
+    function decimals() external view returns (uint8);
+}
 
-    uint256 public presaleStart;
-    uint256 public presaleEnd;
-    uint256 public softCap;
-    uint256 public hardCap;
-    uint256 public raised;
-    uint256 public minContribution;
-    uint256 public maxContribution;
-    uint256 public presaleRate; // tokens per 1 ETH (no decimals)
-    uint256 public liquidityPercent; // e.g. 60 = 60%
+contract PorkPresale is ReentrancyGuard, Ownable {
+    using SafeERC20 for IERC20;
 
-    mapping(address => uint256) public contributions;
-    bool public finalized;
-    bool public cancelled;
+    // Payment token (USDC) and sale token (PORK)
+    IERC20 public immutable paymentToken;   // USDC
+    IMintableERC20 public immutable porkToken; // PORK - must be mintable by this contract
 
-    event Contributed(address indexed user, uint256 amount);
-    event Finalized(uint256 raised, bool success);
-    event Refunded(address indexed user, uint256 amount);
+    // Decimals
+    uint8 public immutable paymentDecimals; // likely 6 for USDC on polygon
+    uint8 public immutable porkDecimals;    // likely 18
+
+    // Rate: number of WHOLE PORK tokens (not including decimals) per 1 USDC.
+    // Example: if porkRate = 3_000_000 then 1 USDC -> 3,000,000 PORK (display units).
+    uint256 public porkRate;
+
+    // Presale controls
+    uint256 public startTimestamp;
+    uint256 public maxUSDCToRaise; // in USDC smallest units (i.e., with paymentDecimals)
+    uint256 public totalRaised; // accumulated USDC (with paymentDecimals)
+    bool public paused;
+
+    event Bought(address indexed buyer, uint256 usdcAmount, uint256 porkAmount);
+    event Withdrawn(address indexed to, uint256 amount);
+    event RateUpdated(uint256 oldRate, uint256 newRate);
+    event StartUpdated(uint256 oldStart, uint256 newStart);
+    event CapUpdated(uint256 oldCap, uint256 newCap);
+    event Paused(bool isPaused);
+
+    modifier whenNotPaused() {
+        require(!paused, "Presale paused");
+        _;
+    }
 
     constructor(
-        address _token,
-        address _router,
-        address _liquidityReceiver,
-        uint256 _presaleStart,
-        uint256 _presaleEnd,
-        uint256 _softCap,
-        uint256 _hardCap,
-        uint256 _minContribution,
-        uint256 _maxContribution,
-        uint256 _presaleRate,
-        uint256 _liquidityPercent
-    ){
-        require(_token != address(0) && _router != address(0) && _liquidityReceiver != address(0), "zero addr");
-        require(_presaleStart < _presaleEnd, "invalid time");
-        token = Porkelon(_token);
-        router = IUniswapV2Router(_router);
-        liquidityReceiver = _liquidityReceiver;
-        presaleStart = _presaleStart;
-        presaleEnd = _presaleEnd;
-        softCap = _softCap;
-        hardCap = _hardCap;
-        minContribution = _minContribution;
-        maxContribution = _maxContribution;
-        presaleRate = _presaleRate;
-        liquidityPercent = _liquidityPercent;
+        address _paymentToken,
+        address _porkToken,
+        uint256 _porkRate,
+        uint256 _startTimestamp,
+        uint256 _maxUSDCToRaise
+    ) {
+        require(_paymentToken != address(0), "paymentToken=0");
+        require(_porkToken != address(0), "porkToken=0");
+        require(_porkRate > 0, "rate>0");
+
+        paymentToken = IERC20(_paymentToken);
+        porkToken = IMintableERC20(_porkToken);
+
+        paymentDecimals = IERC20Decimals(_paymentToken).decimals();
+        porkDecimals = porkToken.decimals();
+
+        porkRate = _porkRate;
+        startTimestamp = _startTimestamp;
+        maxUSDCToRaise = _maxUSDCToRaise;
     }
 
-    receive() external payable {
-        buy(msg.sender, bytes32(0), new bytes32); // fallback if whitelist disabled
-    }
+    /**
+     * @notice Buy PORK using USDC. Caller must have approved USDC to this contract first.
+     * @param usdcAmount the amount of USDC to spend (in USDC smallest units, e.g., 1 USDC = 1_000_000 when paymentDecimals=6)
+     */
+    function buy(uint256 usdcAmount) external nonReentrant whenNotPaused {
+        require(block.timestamp >= startTimestamp, "Presale not started");
+        require(usdcAmount > 0, "Must send USDC");
+        require(totalRaised + usdcAmount <= maxUSDCToRaise, "Cap exceeded");
 
-    function setWhitelist(bytes32 _merkleRoot, bool enabled) external onlyOwner {
-        merkleRoot = _merkleRoot;
-        whitelistEnabled = enabled;
-    }
+        // Pull USDC from buyer
+        paymentToken.safeTransferFrom(msg.sender, address(this), usdcAmount);
 
-    function buy(address beneficiary, bytes32 leaf, bytes32[] calldata proof) public payable nonReentrant {
-        require(block.timestamp >= presaleStart && block.timestamp <= presaleEnd, "not active");
-        require(!cancelled, "cancelled");
-        if (whitelistEnabled) {
-            bytes32 node = keccak256(abi.encodePacked(beneficiary));
-            require(MerkleProof.verify(proof, merkleRoot, node), "not whitelisted");
+        // Calculate PORK to mint, taking token decimals into account:
+        // tokensToMint = usdcAmount * porkRate * (10^(porkDecimals - paymentDecimals))
+        uint256 factor;
+        if (porkDecimals >= paymentDecimals) {
+            factor = 10 ** (uint256(porkDecimals) - uint256(paymentDecimals));
+            // Beware multiplication overflow: usdcAmount * porkRate * factor fits into 256 bits if sensible inputs
+            uint256 tokensToMint = (usdcAmount * porkRate) * factor;
+            porkToken.mint(msg.sender, tokensToMint);
+            totalRaised += usdcAmount;
+            emit Bought(msg.sender, usdcAmount, tokensToMint);
+        } else {
+            // Unusual case where PORK decimals < paymentDecimals
+            // tokensToMint = usdcAmount * porkRate / (10^(paymentDecimals - porkDecimals))
+            factor = 10 ** (uint256(paymentDecimals) - uint256(porkDecimals));
+            uint256 tokensToMint = (usdcAmount * porkRate) / factor;
+            porkToken.mint(msg.sender, tokensToMint);
+            totalRaised += usdcAmount;
+            emit Bought(msg.sender, usdcAmount, tokensToMint);
         }
-        uint256 amount = msg.value;
-        require(amount >= minContribution && contributions[beneficiary] + amount <= maxContribution, "bad contrib");
-
-        require(raised + amount <= hardCap, "exceeds hard cap");
-        contributions[beneficiary] += amount;
-        raised += amount;
-        emit Contributed(beneficiary, amount);
     }
 
-    // If presale fails or owner cancels
-    function claimRefund() external nonReentrant {
-        require(block.timestamp > presaleEnd || cancelled, "not ended");
-        require(raised < softCap || cancelled, "successful");
-        uint256 contributed = contributions[msg.sender];
-        require(contributed > 0, "no contribution");
-        contributions[msg.sender] = 0;
-        (bool ok,) = msg.sender.call{value: contributed}("");
-        require(ok, "refund failed");
-        emit Refunded(msg.sender, contributed);
+    /* ================= Admin Functions ================= */
+
+    /// @notice Withdraw collected USDC to a target address
+    function withdrawUSDC(address to, uint256 amount) external onlyOwner {
+        require(to != address(0), "to=0");
+        uint256 bal = paymentToken.balanceOf(address(this));
+        require(amount <= bal, "Insufficient balance");
+        paymentToken.safeTransfer(to, amount);
+        emit Withdrawn(to, amount);
     }
 
-    // finalize: if success, add liquidity and enable token distribution
-    function finalize(uint256 tokenAmountForPresale) external onlyOwner nonReentrant {
-        require(!finalized, "done");
-        require(block.timestamp > presaleEnd, "not ended");
-        require(raised >= softCap, "softcap not reached");
-        finalized = true;
-
-        uint256 ethForLiquidity = (raised * liquidityPercent) / 100;
-        uint256 tokenForLiquidity = (tokenAmountForPresale * liquidityPercent) / 100;
-        uint256 tokenForDistribution = tokenAmountForPresale - tokenForLiquidity;
-
-        // Transfer tokens from owner to this contract: owner must approve token transfer OR transfer token first
-        // Owner should transfer tokenAmountForPresale tokens to this contract prior to calling finalize.
-        // Add liquidity
-        token.approve(address(router), tokenForLiquidity);
-
-        router.addLiquidityETH{value: ethForLiquidity}(
-            address(token),
-            tokenForLiquidity,
-            0,
-            0,
-            liquidityReceiver,
-            block.timestamp + 3600
-        );
-
-        // distribute tokens to contributors
-        // For gas reasons, distribution may be done via claim() per user or batched offchain. We'll implement claim logic.
-        emit Finalized(raised, true);
+    /// @notice Update the porkRate (whole PORK per 1 USDC)
+    function setPorkRate(uint256 newRate) external onlyOwner {
+        require(newRate > 0, "rate>0");
+        uint256 old = porkRate;
+        porkRate = newRate;
+        emit RateUpdated(old, newRate);
     }
 
-    // After finalize, contributors call claimTokens to get their allocation
-    function claimTokens() external nonReentrant {
-        require(finalized, "not finalized");
-        uint256 contributed = contributions[msg.sender];
-        require(contributed > 0, "no contribution");
-        contributions[msg.sender] = 0;
-        uint256 tokensToSend = (contributed * presaleRate);
-        require(token.balanceOf(address(this)) >= tokensToSend, "insufficient tokens in contract");
-        token.transfer(msg.sender, tokensToSend);
+    /// @notice Update start timestamp
+    function setStartTimestamp(uint256 newStart) external onlyOwner {
+        uint256 old = startTimestamp;
+        startTimestamp = newStart;
+        emit StartUpdated(old, newStart);
     }
 
-    // Owner utilities
-    function cancelPresale() external onlyOwner {
-        require(!finalized, "already finalized");
-        cancelled = true;
+    /// @notice Update max USDC to raise (in smallest units)
+    function setMaxUSDCToRaise(uint256 newCap) external onlyOwner {
+        uint256 old = maxUSDCToRaise;
+        maxUSDCToRaise = newCap;
+        emit CapUpdated(old, newCap);
     }
 
-    // Withdraw leftover ETH (owner fees, marketing) after finalize
-    function withdrawETH(address payable to, uint256 amount) external onlyOwner {
-        require(finalized, "not finalized");
-        require(to != address(0), "zero addr");
-        (bool ok,) = to.call{value: amount}("");
-        require(ok, "withdraw failed");
+    /// @notice Pause/unpause presale
+    function setPaused(bool _paused) external onlyOwner {
+        paused = _paused;
+        emit Paused(_paused);
     }
 
-    // emergency withdraw tokens owned by contract (only owner)
-    function emergencyWithdrawToken(address tokenAddr, address to) external onlyOwner {
-        IERC20(tokenAddr).transfer(to, IERC20(tokenAddr).balanceOf(address(this)));
+    /* Emergency: owner can withdraw any ERC20 accidentally sent here (except PORK minting should be left)
+       Note: Be careful with allowing arbitrary token withdrawal; restrict usage to owner. */
+    function rescueToken(address token, address to, uint256 amount) external onlyOwner {
+        require(to != address(0), "to=0");
+        IERC20(token).safeTransfer(to, amount);
     }
 }
