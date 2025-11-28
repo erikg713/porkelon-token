@@ -1,312 +1,183 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.29;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-// Uniswap V3 (QuickSwap on Polygon) interfaces
-interface IUniswapV3Factory {
-    function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool);
-    function createPool(address tokenA, address tokenB, uint24 fee) external returns (address pool);
-}
-
-interface INonfungiblePositionManager {
-    struct MintParams {
-        address token0;
-        address token1;
-        uint24 fee;
-        int24 tickLower;
-        int24 tickUpper;
-        uint256 amount0Desired;
-        uint256 amount1Desired;
-        uint256 amount0Min;
-        uint256 amount1Min;
-        address recipient;
-        uint256 deadline;
-    }
-    struct CollectParams {
-        uint256 tokenId;
-        address recipient;
-        uint128 amount0Max;
-        uint128 amount1Max;
-    }
-    function mint(MintParams calldata params) external returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
-    function collect(CollectParams calldata params) external returns (uint256 amount0, uint256 amount1);
-    function positions(uint256 tokenId) external view returns (
-        uint96 nonce,
-        address operator,
-        address token0,
-        address token1,
-        uint24 fee,
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 liquidity,
-        uint256 feeGrowthInside0LastX128,
-        uint256 feeGrowthInside1LastX128,
-        uint128 tokensOwed0,
-        uint128 tokensOwed1
-    );
-}
-
-interface IWMATIC {
-    function deposit() external payable;
-    function withdraw(uint256 wad) external;
-}
-
-contract Porkelon is ERC20, ERC20Burnable, ERC20Permit, AccessControl, Pausable {
-    using SafeERC20 for IERC20;
-
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+/**
+ * @title Porkelon (PORK)
+ * @dev The core governance and utility token of the Porkelon Ecosystem.
+ * Features: Upgradeable (UUPS), Pausable, Burnable, DAO-Ready (Votes+Permit), 1% Transfer Tax.
+ */
+contract Porkelon is 
+    Initializable, 
+    ERC20Upgradeable, 
+    ERC20BurnableUpgradeable, 
+    ERC20PausableUpgradeable, 
+    AccessControlUpgradeable, 
+    ERC20PermitUpgradeable, 
+    ERC20VotesUpgradeable, 
+    UUPSUpgradeable 
+{
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    mapping(bytes32 => bool) public usedNonces; // Replay protection for bridge
-    address public immutable multisig; // Gnosis Safe address
-    string public metadataURI; // Metadata (e.g., logo URI)
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+    
+    // --- Supply Configuration ---
+    uint256 public constant MAX_SUPPLY = 100_000_000_000 * 10**18; // 100 Billion
+    
+    // --- Fee Configuration ---
+    address public teamWallet; 
+    mapping(address => bool) private _isExcludedFromFee;
 
-    // Staking
-    struct StakeInfo {
-        uint256 amount;
-        uint256 rewardDebt;
-        uint256 lastStakeTime;
-    }
-    mapping(address => StakeInfo) public stakes;
-    uint256 public totalStaked;
-    uint256 public rewardPerTokenStored;
-    uint256 public rewardRate;
-    uint256 public lastUpdateTime;
-    uint256 public constant REWARD_PRECISION = 1e18;
+    // --- Events ---
+    event TeamWalletUpdated(address indexed newWallet);
+    event FeeExclusionUpdated(address indexed account, bool isExcluded);
 
-    // Liquidity Pool (QuickSwap V3)
-    address public constant UNISWAP_V3_FACTORY = 0x411b0fAcC3489691f28ad58c47006AF5E3Ab3A28;
-    address public constant NONFUNGIBLE_POSITION_MANAGER = 0x8eF88E4c7CfbbaC1C163f7eddd4B578792201de6;
-    address public constant WMATIC = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
-    uint24 public constant POOL_FEE = 3000; // 0.3% fee tier
-    address public liquidityPool; // PORK/WMATIC pool
-    bool public isPORKToken0; // Cached token order
-    uint256[] public liquidityPositionIds; // Array of NFT position IDs
-
-    event Staked(address indexed user, uint256 amount);
-    event Unstaked(address indexed user, uint256 amount);
-    event RewardsClaimed(address indexed user, uint256 amount);
-    event RewardRateUpdated(uint256 newRate);
-    event MetadataUpdated(string uri);
-    event LiquidityPoolCreated(address pool);
-    event LiquidityAdded(uint256 tokenId, uint128 liquidity, uint256 amountPORK, uint256 amountMATIC);
-    event FeesCollected(uint256 tokenId, uint256 amount0, uint256 amount1);
-
-    constructor(
-        address _multisig,
-        string memory _metadataURI
-    ) ERC20("Porkelon Token", "PORK") ERC20Permit("Porkelon Token") {
-        multisig = _multisig;
-        metadataURI = _metadataURI;
-        _grantRole(DEFAULT_ADMIN_ROLE, _multisig);
-        _grantRole(MINTER_ROLE, _multisig);
-        _grantRole(PAUSER_ROLE, _multisig);
-        lastUpdateTime = block.timestamp;
-
-        // Pre-approve Position Manager for PORK and WMATIC
-        IERC20(address(this)).approve(NONFUNGIBLE_POSITION_MANAGER, type(uint256).max);
-        IERC20(WMATIC).approve(NONFUNGIBLE_POSITION_MANAGER, type(uint256).max);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
-    // --- Staking Functions ---
-    function _updateRewards() internal {
-        if (totalStaked == 0) {
-            lastUpdateTime = block.timestamp;
-            return;
-        }
-        uint256 timeDelta = block.timestamp - lastUpdateTime;
-        uint256 reward = timeDelta * rewardRate;
-        rewardPerTokenStored += (reward * REWARD_PRECISION) / totalStaked;
-        lastUpdateTime = block.timestamp;
+    /**
+     * @dev Initializer function (replaces constructor for upgradeable contracts).
+     * @param _defaultAdmin The master admin (Timelock).
+     * @param _teamWallet The wallet to receive the 1% tax.
+     * @param _wallets Array of 6 addresses for allocation:
+     * [0]: Dev, [1]: Staking, [2]: Liquidity, [3]: Marketing, [4]: Airdrops, [5]: Presale
+     */
+    function initialize(
+        address _defaultAdmin,
+        address _teamWallet,
+        address[] memory _wallets
+    ) public initializer {
+        require(_wallets.length == 6, "Invalid wallet list length");
+        require(_teamWallet != address(0), "Invalid team wallet");
+
+        __ERC20_init("Porkelon", "PORK");
+        __ERC20Burnable_init();
+        __ERC20Pausable_init();
+        __AccessControl_init();
+        __ERC20Permit_init("Porkelon");
+        __ERC20Votes_init();
+        __UUPSUpgradeable_init();
+
+        // Roles
+        _grantRole(DEFAULT_ADMIN_ROLE, _defaultAdmin);
+        _grantRole(PAUSER_ROLE, _defaultAdmin);
+        _grantRole(UPGRADER_ROLE, _defaultAdmin);
+
+        // Fee Setup
+        teamWallet = _teamWallet;
+        _isExcludedFromFee[_defaultAdmin] = true;
+        _isExcludedFromFee[_teamWallet] = true;
+        _isExcludedFromFee[address(this)] = true;
+
+        // --- Mint Allocations (Total 100B) ---
+        // Dev: 25%
+        _mint(_wallets[0], (MAX_SUPPLY * 25) / 100);
+        // Staking: 10%
+        _mint(_wallets[1], (MAX_SUPPLY * 10) / 100);
+        // Liquidity: 40%
+        _mint(_wallets[2], (MAX_SUPPLY * 40) / 100);
+        // Marketing: 10%
+        _mint(_wallets[3], (MAX_SUPPLY * 10) / 100);
+        // Airdrops: 5%
+        _mint(_wallets[4], (MAX_SUPPLY * 5) / 100);
+        // Presale: 10%
+        _mint(_wallets[5], (MAX_SUPPLY * 10) / 100);
     }
 
-    function pendingRewards(address user) public view returns (uint256) {
-        StakeInfo storage stake = stakes[user];
-        if (stake.amount == 0) return 0;
-        uint256 accumulated = rewardPerTokenStored +
-            ((block.timestamp - lastUpdateTime) * rewardRate * REWARD_PRECISION) / totalStaked;
-        return ((stake.amount * accumulated) / REWARD_PRECISION) - stake.rewardDebt;
-    }
+    // --- Admin Functions ---
 
-    function stake(uint256 amount) external whenNotPaused {
-        require(amount > 0, "Amount must be greater than zero");
-        _updateRewards();
-        StakeInfo storage stakeInfo = stakes[msg.sender];
-        uint256 pending = pendingRewards(msg.sender);
-        if (pending > 0) {
-            _transfer(address(this), msg.sender, pending);
-            emit RewardsClaimed(msg.sender, pending);
-        }
-        _transfer(msg.sender, address(this), amount);
-        stakeInfo.amount += amount;
-        stakeInfo.rewardDebt = (stakeInfo.amount * rewardPerTokenStored) / REWARD_PRECISION;
-        stakeInfo.lastStakeTime = block.timestamp;
-        totalStaked += amount;
-        emit Staked(msg.sender, amount);
-    }
-
-    function unstake(uint256 amount) external whenNotPaused {
-        require(amount > 0, "Amount must be greater than zero");
-        StakeInfo storage stakeInfo = stakes[msg.sender];
-        require(stakeInfo.amount >= amount, "Insufficient staked amount");
-        _updateRewards();
-        uint256 pending = pendingRewards(msg.sender);
-        if (pending > 0) {
-            _transfer(address(this), msg.sender, pending);
-            emit RewardsClaimed(msg.sender, pending);
-        }
-        stakeInfo.amount -= amount;
-        stakeInfo.rewardDebt = (stakeInfo.amount * rewardPerTokenStored) / REWARD_PRECISION;
-        totalStaked -= amount;
-        _transfer(address(this), msg.sender, amount);
-        emit Unstaked(msg.sender, amount);
-    }
-
-    function claimRewards() external whenNotPaused {
-        _updateRewards();
-        uint256 pending = pendingRewards(msg.sender);
-        require(pending > 0, "No rewards to claim");
-        stakes[msg.sender].rewardDebt = (stakes[msg.sender].amount * rewardPerTokenStored) / REWARD_PRECISION;
-        _transfer(address(this), msg.sender, pending);
-        emit RewardsClaimed(msg.sender, pending);
-    }
-
-    function setRewardRate(uint256 newRate) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _updateRewards();
-        rewardRate = newRate;
-        emit RewardRateUpdated(newRate);
-    }
-
-    function fundRewards(uint256 amount) external onlyRole(MINTER_ROLE) {
-        _mint(address(this), amount);
-    }
-
-    // --- Liquidity Pool Functions ---
-
-    function createLiquidityPool() external onlyRole(DEFAULT_ADMIN_ROLE) returns (address pool) {
-        pool = IUniswapV3Factory(UNISWAP_V3_FACTORY).getPool(address(this), WMATIC, POOL_FEE);
-        if (pool == address(0)) {
-            pool = IUniswapV3Factory(UNISWAP_V3_FACTORY).createPool(address(this), WMATIC, POOL_FEE);
-            isPORKToken0 = address(this) < WMATIC;
-            liquidityPool = pool;
-            emit LiquidityPoolCreated(pool);
-        } else if (liquidityPool == address(0)) {
-            isPORKToken0 = address(this) < WMATIC;
-            liquidityPool = pool;
-            emit LiquidityPoolCreated(pool);
-        }
-        return pool;
-    }
-
-    function addLiquidity(
-        uint256 amountPORKDesired,
-        uint256 amountMATICDesired,
-        int24 tickLower,
-        int24 tickUpper,
-        uint256 deadline
-    ) external payable onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
-        require(liquidityPool != address(0), "Pool not created");
-        require(msg.value >= amountMATICDesired, "Insufficient MATIC sent");
-
-        if (msg.value > 0) {
-            IWMATIC(WMATIC).deposit{value: msg.value}();
-        }
-
-        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
-            token0: isPORKToken0 ? address(this) : WMATIC,
-            token1: isPORKToken0 ? WMATIC : address(this),
-            fee: POOL_FEE,
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            amount0Desired: isPORKToken0 ? amountPORKDesired : amountMATICDesired,
-            amount1Desired: isPORKToken0 ? amountMATICDesired : amountPORKDesired,
-            amount0Min: 0,
-            amount1Min: 0,
-            recipient: address(this),
-            deadline: deadline
-        });
-
-        (uint256 tokenId, uint128 liquidity, , ) = INonfungiblePositionManager(NONFUNGIBLE_POSITION_MANAGER).mint(params);
-        liquidityPositionIds.push(tokenId);
-        emit LiquidityAdded(tokenId, liquidity, amountPORKDesired, amountMATICDesired);
-
-        if (msg.value > amountMATICDesired) {
-            (bool success, ) = msg.sender.call{value: msg.value - amountMATICDesired}("");
-            require(success, "Refund failed");
-        }
-    }
-
-    function collectFees(uint256 tokenId, uint128 amount0Max, uint128 amount1Max) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
-            tokenId: tokenId,
-            recipient: multisig,
-            amount0Max: amount0Max,
-            amount1Max: amount1Max
-        });
-        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(NONFUNGIBLE_POSITION_MANAGER).collect(params);
-        emit FeesCollected(tokenId, amount0, amount1);
-    }
-
-    function getLiquidityPositionIds() external view returns (uint256[] memory) {
-        return liquidityPositionIds;
-    }
-
-    // --- Bridge and Other Functions ---
-
-    function mint(
-        address to,
-        uint256 amount,
-        bytes32 payloadHash,
-        bytes[] calldata signatures,
-        bytes32 nonce
-    ) external onlyRole(MINTER_ROLE) whenNotPaused {
-        require(!usedNonces[nonce], "Nonce already used");
-        usedNonces[nonce] = true;
-        require(verifySignatures(payloadHash, signatures), "Invalid signatures");
-        _mint(to, amount);
-    }
-
-    function airdrop(
-        address[] calldata recipients,
-        uint256[] calldata amounts,
-        bytes32 payloadHash,
-        bytes[] calldata signatures,
-        bytes32 nonce
-    ) external onlyRole(MINTER_ROLE) whenNotPaused {
-        require(recipients.length == amounts.length, "Array length mismatch");
-        require(!usedNonces[nonce], "Nonce already used");
-        usedNonces[nonce] = true;
-        require(verifySignatures(payloadHash, signatures), "Invalid signatures");
-        for (uint256 i = 0; i < recipients.length; i++) {
-            _mint(recipients[i], amounts[i]);
-        }
-    }
-
-    function burn(uint256 amount) public override whenNotPaused {
-        super.burn(amount);
-    }
-
-    function pause() external onlyRole(PAUSER_ROLE) {
+    function pause() public onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
-    function unpause() external onlyRole(PAUSER_ROLE) {
+    function unpause() public onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
-    function setMetadata(string calldata uri) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        metadataURI = uri;
-        emit MetadataUpdated(uri);
+    /**
+     * @dev Exclude or Include an address from the transfer fee.
+     */
+    function setExcludedFromFee(address account, bool isExcluded) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "Invalid address");
+        _isExcludedFromFee[account] = isExcluded;
+        emit FeeExclusionUpdated(account, isExcluded);
     }
 
-    function verifySignatures(bytes32 payloadHash, bytes[] calldata signatures) private view returns (bool) {
-        return signatures.length >= 2; // Replace with Gnosis Safe verification
+    /**
+     * @dev Update the wallet that receives fees.
+     */
+    function setTeamWallet(address newTeamWallet) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newTeamWallet != address(0), "Invalid address");
+        
+        // Update exclusions logic
+        if (_isExcludedFromFee[teamWallet]) {
+            _isExcludedFromFee[teamWallet] = false;
+        }
+        
+        teamWallet = newTeamWallet;
+        _isExcludedFromFee[newTeamWallet] = true;
+        
+        emit TeamWalletUpdated(newTeamWallet);
     }
 
-    receive() external payable {}
+    function isExcludedFromFee(address account) public view returns (bool) {
+        return _isExcludedFromFee[account];
+    }
+
+    // --- Authorization ---
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
+
+    // --- Overrides ---
+
+    /**
+     * @dev Core transfer logic with 1% Fee implementation.
+     */
+    function _update(address from, address to, uint256 value)
+        internal
+        override(ERC20Upgradeable, ERC20PausableUpgradeable, ERC20VotesUpgradeable)
+    {
+        _requireNotPaused();
+
+        // Determine if fee applies
+        // Fee applies if:
+        // - Not a mint (from != 0)
+        // - Not a burn (to != 0)
+        // - Neither sender nor receiver is excluded
+        bool takeFee = from != address(0) && to != address(0) && !_isExcludedFromFee[from] && !_isExcludedFromFee[to];
+
+        if (takeFee) {
+            uint256 fee = (value * 1) / 100; // 1% fee
+            uint256 amountAfterFee = value - fee;
+
+            // Transfer fee to team wallet
+            if (fee > 0) {
+                super._update(from, teamWallet, fee);
+            }
+
+            // Transfer remaining amount to recipient
+            super._update(from, to, amountAfterFee);
+        } else {
+            // Standard transfer (Mint, Burn, or Excluded)
+            super._update(from, to, value);
+        }
+    }
+
+    function nonces(address owner)
+        public
+        view
+        override(ERC20PermitUpgradeable, NoncesUpgradeable)
+        returns (uint256)
+    {
+        return super.nonces(owner);
+    }
 }
