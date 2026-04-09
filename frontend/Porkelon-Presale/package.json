@@ -37,6 +37,6 @@
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@esbuild-plugins/node-modules-polyfill": "^0.2.1",
     "typescript": "~5.6.2",
-    "vite": "^5.4.8"
+    "vite": "^8.0.8"
   }
 }
