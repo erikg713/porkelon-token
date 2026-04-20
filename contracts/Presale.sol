@@ -1,46 +1,44 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20; // Changed to a stable, recent version for Remix compatibility
+pragma solidity ^0.8.20;
 
-/*
- Presale contract:
- - Buyers send USDC (ERC20 with 6 decimals) by calling buy(usdcAmount)
- - They receive PORK tokens minted to their address at the configured rate
- - Rate is expressed as X whole PORK per 1 USDC (eg. 3_000_000)
- - The contract calculates token amounts respecting both tokens' decimals
-*/
+// Presale contract (GAS-OPTIMIZED):
+// - Buyers send USDC (ERC20 with 6 decimals) by calling buy(usdcAmount)
+// - They receive PORK tokens minted at the configured rate
+// - Rate = X whole PORK per 1 USDC (e.g. 3_000_000)
+// - All decimal handling is precomputed in constructor → zero runtime cost in buy()
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol"; // Import standard IERC20
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-// This interface is used for the PORK token, which must have a mint function.
-// We inherit IERC20 to ensure it also has the transfer/balance functions.
-interface IMintableERC20 is IERC20 { 
+interface IMintableERC20 is IERC20Metadata { 
     function mint(address to, uint256 amount) external;
 }
-
-// We will use IERC20 for both payment and PORK tokens, and call the decimals() 
-// function directly on the IERC20 interface since most tokens implement it.
 
 contract PorkPresale is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     // Payment token (USDC) and sale token (PORK)
-    IERC20 public immutable paymentToken;    // USDC
-    IMintableERC20 public immutable porkToken; // PORK - must be mintable by this contract
+    IERC20 public immutable paymentToken;
+    IMintableERC20 public immutable porkToken;
 
-    // Decimals
+    // Decimals (kept for transparency / frontend)
     uint8 public immutable paymentDecimals; 
     uint8 public immutable porkDecimals;    
 
-    // Rate: number of WHOLE PORK tokens (not including decimals) per 1 USDC.
+    // Rate: whole PORK tokens per 1 USDC
     uint256 public porkRate;
+
+    // Precomputed scaling (BIG GAS WIN for every buy())
+    uint256 public immutable scalingFactor;   // 10 ** |porkDecimals - paymentDecimals|
+    bool public immutable needsDivision;      // true only if porkDecimals < paymentDecimals (very rare)
 
     // Presale controls
     uint256 public startTimestamp;
-    uint256 public maxUSDCToRaise; // in USDC smallest units (i.e., with paymentDecimals)
-    uint256 public totalRaised; // accumulated USDC (with paymentDecimals)
+    uint256 public maxUSDCToRaise;
+    uint256 public totalRaised;
     bool public paused;
 
     event Bought(address indexed buyer, uint256 usdcAmount, uint256 porkAmount);
@@ -66,17 +64,31 @@ contract PorkPresale is ReentrancyGuard, Ownable {
         require(_porkToken != address(0), "porkToken=0");
         require(_porkRate > 0, "rate>0");
         
-        // Assign tokens
         paymentToken = IERC20(_paymentToken);
         porkToken = IMintableERC20(_porkToken);
 
-        // Fetch decimals (Requires paymentToken to have decimals() implemented)
-        paymentDecimals = paymentToken.decimals();
-        porkDecimals = porkToken.decimals();
+        // Fetch decimals once
+        paymentDecimals = IERC20Metadata(_paymentToken).decimals();
+        porkDecimals = IERC20Metadata(_porkToken).decimals();
 
-        // Check expected decimals for safety/gas optimization (optional but recommended)
-        require(paymentDecimals <= 18, "Payment token decimals too high");
+        require(paymentDecimals <= 18, "Payment decimals too high");
         require(porkDecimals <= 18, "PORK decimals too high");
+
+        // === GAS OPTIMIZATION: Precompute decimal scaling (done only once at deploy) ===
+        uint256 _scalingFactor;
+        bool _needsDivision;
+        if (porkDecimals >= paymentDecimals) {
+            uint8 diff = porkDecimals - paymentDecimals;
+            _scalingFactor = 10 ** uint256(diff);   // max 1e18, fits uint256
+            _needsDivision = false;
+        } else {
+            uint8 diff = paymentDecimals - porkDecimals;
+            _scalingFactor = 10 ** uint256(diff);
+            _needsDivision = true;
+        }
+        scalingFactor = _scalingFactor;
+        needsDivision = _needsDivision;
+        // ============================================================================
 
         porkRate = _porkRate;
         startTimestamp = _startTimestamp;
@@ -84,48 +96,67 @@ contract PorkPresale is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Buy PORK using USDC. Caller must have approved USDC to this contract first.
+     * @notice Buy PORK using USDC. Caller must approve USDC first.
+     * @dev Gas-optimized: decimal scaling is precomputed → no 10** or branching at runtime.
      */
     function buy(uint256 usdcAmount) external nonReentrant whenNotPaused {
         require(block.timestamp >= startTimestamp, "Presale not started");
         require(usdcAmount > 0, "Must send USDC");
         require(totalRaised + usdcAmount <= maxUSDCToRaise, "Cap exceeded");
 
-        // Pull USDC from buyer
+        // Pull USDC
         paymentToken.safeTransferFrom(msg.sender, address(this), usdcAmount);
 
-        // Calculate PORK to mint, taking token decimals into account:
-        // tokensToMint = usdcAmount * porkRate * (10^(porkDecimals - paymentDecimals))
-        
-        uint256 tokensToMint;
+        // === Gas-optimized token calculation (no if, no exponentiation) ===
         uint256 rateScaled = usdcAmount * porkRate;
-        
-        if (porkDecimals >= paymentDecimals) {
-            uint256 factor = 10 ** (uint256(porkDecimals) - uint256(paymentDecimals));
-            tokensToMint = rateScaled * factor;
-        } else {
-            // Unusual case where PORK decimals < paymentDecimals
-            uint256 factor = 10 ** (uint256(paymentDecimals) - uint256(porkDecimals));
-            tokensToMint = rateScaled / factor;
-        }
+        uint256 tokensToMint = needsDivision 
+            ? rateScaled / scalingFactor 
+            : rateScaled * scalingFactor;
+        // =================================================================
 
         porkToken.mint(msg.sender, tokensToMint);
         totalRaised += usdcAmount;
+
         emit Bought(msg.sender, usdcAmount, tokensToMint);
     }
 
     /* ================= Admin Functions (Only Owner) ================= */
 
-    /// @notice Withdraw collected USDC to a target address
     function withdrawUSDC(address to, uint256 amount) external onlyOwner {
         require(to != address(0), "to=0");
         uint256 bal = paymentToken.balanceOf(address(this));
         require(amount <= bal, "Insufficient balance");
         paymentToken.safeTransfer(to, amount);
-        // Note: totalRaised is NOT reset here, it tracks the cap, not the contract's balance
         emit Withdrawn(to, amount);
     }
 
-    // [All other admin functions remain the same: setPorkRate, setStartTimestamp, setMaxUSDCToRaise, setPaused, rescueToken]
-    // ... (rest of the code)
+    function setPorkRate(uint256 _newRate) external onlyOwner {
+        require(_newRate > 0, "rate>0");
+        uint256 oldRate = porkRate;
+        porkRate = _newRate;
+        emit RateUpdated(oldRate, _newRate);
+    }
+
+    function setStartTimestamp(uint256 _newStart) external onlyOwner {
+        uint256 oldStart = startTimestamp;
+        startTimestamp = _newStart;
+        emit StartUpdated(oldStart, _newStart);
+    }
+
+    function setMaxUSDCToRaise(uint256 _newCap) external onlyOwner {
+        uint256 oldCap = maxUSDCToRaise;
+        maxUSDCToRaise = _newCap;
+        emit CapUpdated(oldCap, _newCap);
+    }
+
+    function setPaused(bool _paused) external onlyOwner {
+        paused = _paused;
+        emit Paused(_paused);
+    }
+
+    function rescueToken(IERC20 token, address to, uint256 amount) external onlyOwner {
+        require(address(token) != address(0), "token=0");
+        require(to != address(0), "to=0");
+        token.safeTransfer(to, amount);
+    }
 }
