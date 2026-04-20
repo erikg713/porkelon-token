@@ -37,6 +37,13 @@ contract PorkelonStakingRewards is Initializable, OwnableUpgradeable, UUPSUpgrad
     event RewardsDurationUpdated(uint256 newDuration);
     event RewardAdded(uint256 reward);
 
+    // ====================== CUSTOM ERRORS (gas savings on reverts) ======================
+    error CannotStakeZero();
+    error CannotWithdrawZero();
+    error InsufficientStakedBalance();
+    error PreviousRewardsPeriodMustFinish();
+    error RewardRateMustBePositive();
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -52,15 +59,26 @@ contract PorkelonStakingRewards is Initializable, OwnableUpgradeable, UUPSUpgrad
         duration = 365 days;  // Default: 1 year; adjustable
     }
 
-    modifier updateReward(address account) {
-        rewardPerTokenStored = rewardPerToken();
-        updatedAt = lastTimeRewardApplicable();
+    // ====================== GAS-OPTIMIZED REWARD UPDATE (replaces modifier) ======================
+    // - Computes rewardPerToken delta **once** per transaction
+    // - Inlines earned() calculation → eliminates redundant rewardPerToken() call
+    // - No function call overhead in hot path (stake/withdraw/getReward)
+    function _updateReward(address account) internal {
+        uint256 lastTime = lastTimeRewardApplicable();
+
+        if (totalSupply != 0) {
+            // Exact same math as original rewardPerToken() but computed only once
+            uint256 rewardDelta = rewardRate * (lastTime - updatedAt) * 1e18 / totalSupply;
+            rewardPerTokenStored += rewardDelta;
+        }
+
+        updatedAt = lastTime;
 
         if (account != address(0)) {
-            rewards[account] = earned(account);
+            // Inline earned() to avoid second rewardPerToken() + function call
+            rewards[account] = (balanceOf[account] * (rewardPerTokenStored - userRewardPerTokenPaid[account]) / 1e18) + rewards[account];
             userRewardPerTokenPaid[account] = rewardPerTokenStored;
         }
-        _;
     }
 
     function lastTimeRewardApplicable() public view returns (uint256) {
@@ -78,24 +96,40 @@ contract PorkelonStakingRewards is Initializable, OwnableUpgradeable, UUPSUpgrad
         return (balanceOf[account] * (rewardPerToken() - userRewardPerTokenPaid[account]) / 1e18) + rewards[account];
     }
 
-    function stake(uint256 amount) external nonReentrant updateReward(msg.sender) {
-        require(amount > 0, "Cannot stake 0");
-        totalSupply += amount;
-        balanceOf[msg.sender] += amount;
+    function stake(uint256 amount) external nonReentrant {
+        _updateReward(msg.sender);                    // ← GAS WIN: single computation
+
+        if (amount == 0) revert CannotStakeZero();
+
+        // Unchecked: safe because amount > 0 and we never overflow reasonable token supplies
+        unchecked {
+            totalSupply += amount;
+            balanceOf[msg.sender] += amount;
+        }
+
         stakingToken.transferFrom(msg.sender, address(this), amount);
         emit Staked(msg.sender, amount);
     }
 
-    function withdraw(uint256 amount) external nonReentrant updateReward(msg.sender) {
-        require(amount > 0, "Cannot withdraw 0");
-        require(balanceOf[msg.sender] >= amount, "Insufficient staked balance");
-        totalSupply -= amount;
-        balanceOf[msg.sender] -= amount;
+    function withdraw(uint256 amount) external nonReentrant {
+        _updateReward(msg.sender);                    // ← GAS WIN: single computation
+
+        if (amount == 0) revert CannotWithdrawZero();
+        if (balanceOf[msg.sender] < amount) revert InsufficientStakedBalance();
+
+        // Unchecked: safe because of the balance check above
+        unchecked {
+            totalSupply -= amount;
+            balanceOf[msg.sender] -= amount;
+        }
+
         stakingToken.transfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount);
     }
 
-    function getReward() external nonReentrant updateReward(msg.sender) {
+    function getReward() external nonReentrant {
+        _updateReward(msg.sender);                    // ← GAS WIN: single computation
+
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
             rewards[msg.sender] = 0;
@@ -106,20 +140,24 @@ contract PorkelonStakingRewards is Initializable, OwnableUpgradeable, UUPSUpgrad
 
     // Owner sets new duration (only after current period ends)
     function setRewardsDuration(uint256 _duration) external onlyOwner {
-        require(block.timestamp >= finishAt, "Previous rewards period must finish");
+        if (block.timestamp < finishAt) revert PreviousRewardsPeriodMustFinish();
         duration = _duration;
         emit RewardsDurationUpdated(_duration);
     }
 
     // Owner notifies new rewards (transfers must be done prior if needed)
-    function notifyRewardAmount(uint256 reward) external onlyOwner updateReward(address(0)) {
+    function notifyRewardAmount(uint256 reward) external onlyOwner {
+        _updateReward(address(0));                    // ← GAS WIN: single computation
+
         if (block.timestamp >= finishAt) {
             rewardRate = reward / duration;
         } else {
             uint256 remaining = (finishAt - block.timestamp) * rewardRate;
             rewardRate = (reward + remaining) / duration;
         }
-        require(rewardRate > 0, "Reward rate must be > 0");
+
+        if (rewardRate == 0) revert RewardRateMustBePositive();
+
         updatedAt = block.timestamp;
         finishAt = block.timestamp + duration;
         emit RewardAdded(reward);
