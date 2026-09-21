@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "bip39": "^3.0.4",
-    "csv-parse": "^5.0.4",
+    "csv-parse": "^7.0.2",
     "csv-stringify": "^6.0.5",
     "ethers": "^6.0.0"
   }
